@@ -1,0 +1,76 @@
+﻿<!DOCTYPE html>
+<html>
+
+
+<body>
+    <canvas id="myCanvas" width="1200" height="800"></canvas>
+    <script type="text/javascript" src="perlin.js"></script>
+    <script type="text/javascript" src="growthParticle.js"></script>
+    <script type="text/javascript" src="gg_utils.js"></script>
+
+    <script>
+
+		// get the context
+		var canvas = document.getElementById("myCanvas");
+		var context = canvas.getContext('2d');
+
+ 		var frameCount = 0;
+
+		//scene statics
+ 		var maxParticleCount = 50;
+ 		var minLifeTime = 2000;
+ 		var maxLifeTime = 2500;
+
+		var particles = [];
+
+        //initiate particles
+		var init = function () {
+		    console.log("init");
+		    for (var i = 0; i < 1; i++){
+		        createNewParticle(i, canvas.width/2, canvas.height/2, Util.rand(12, 15));
+		    }
+		}
+
+		var createNewParticle = function (index, posX, posY, size) {
+		    particles[index] = new Particle(Util.rand(minLifeTime, maxLifeTime), posX, posY, frameCount, size);
+		}
+        //draw every frame
+		var draw = function () {
+            context.fillStyle   = "rgba(255,255,255,0.002)"
+            context.fillRect(0, 0, canvas.width, canvas.height);
+
+            //console.log(particles.length);
+
+            for (var i = 0; i < particles.length; i++) {
+
+                if (Util.rand(1, 1000) < 5 && particles.length <= maxParticleCount) {
+                    createNewParticle(particles.length, particles[i].pos.x, particles[i].pos.y, Util.rand(2,10));
+                }
+                
+                if (particles[i].lifeTime <= 0) {
+                    createNewParticle(i, Util.rand(0, canvas.width), Util.rand(0, canvas.height), Util.rand(2, 10));
+                    //console.log(particles[i].lifeTime);
+                }
+
+                particles[i].update(frameCount);
+                particles[i].draw(context);
+            }
+
+            frameCount = frameCount + 1;
+            //console.log(frameCount);
+        	requestAnimationFrame(draw);
+      	};
+
+
+        // init particles and attractors
+        init();
+
+        // start loop
+      	draw();
+
+
+    </script>
+
+</body>
+
+</html>
