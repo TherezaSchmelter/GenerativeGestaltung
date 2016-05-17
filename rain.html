@@ -1,77 +1,76 @@
-<!DOCTYPE HTML>
+<!DOCTYPE html>
 <html>
 
-
-  <body>
+<body>
     <canvas id="myCanvas" width="1200" height="800"></canvas>
     <script type="text/javascript" src="perlin.js"></script>
-	<script type="text/javascript" src="rainParticle.js"></script>
-	<script type="text/javascript" src="gg_utils.js"></script>
+    <script type="text/javascript" src="rainParticle.js"></script>
+    <script type="text/javascript" src="gg_utils.js"></script>
 
     <script>
 
-		// get the context
-		var canvas = document.getElementById("myCanvas");
-		var context = canvas.getContext('2d');
+        // get the context
+        var canvas = document.getElementById("myCanvas");
+        var context = canvas.getContext('2d');
 
- 		var frameCount = 0;
-		
-		//scene statics
-		var maxParticleCount = 2000;
-		var gForceX = 0;
-		var gForceY = 0.1;
+        var frameCount = 0;
 
-		var spawnPosition = {};
-		spawnPosition.minX = -canvas.width/2;
-		spawnPosition.maxX = canvas.width + canvas.width / 4;
-		spawnPosition.minY = 0;
-		spawnPosition.maxY = -canvas.height;
-		
-		var particles = [];
-		
+        //scene statics
+        var maxParticleCount = 2000;
+        var gForceX = 0;
+        var gForceY = 0.1;
+
+        var spawnPosition = {};
+        spawnPosition.minX = -canvas.width / 2;
+        spawnPosition.maxX = canvas.width + canvas.width / 4;
+        spawnPosition.minY = 0;
+        spawnPosition.maxY = -canvas.height;
+
+        var particles = [];
+
         //initiate particles
-		var init = function () {
-		    console.log("init");
-		    for (var i = 0; i < maxParticleCount; i++) {
-		        particles[i] = new Particle(Util.rand(150, 200), Util.rand(spawnPosition.minX, spawnPosition.maxX), Util.rand(-canvas.height, canvas.height), Util.rand(1,20), canvas.height);
-		    }
-		}
+        var init = function () {
+            console.log("init");
+            for (var i = 0; i < maxParticleCount; i++) {
+                particles[i] = new Particle(Util.rand(150, 200), Util.rand(spawnPosition.minX, spawnPosition.maxX), Util.rand(-canvas.height, canvas.height), Util.rand(1, 20), canvas.height);
+            }
+        }
 
         //function for creating a new particle
-		var createNewParticle = function (id) {
-		    particles[id] = new Particle(Util.rand(150, 200), Util.rand(spawnPosition.minX, spawnPosition.maxX), Util.rand(spawnPosition.minY, spawnPosition.maxY), Util.rand(1, 20), canvas.height);
-		}
-        
+        var createNewParticle = function (id) {
+            particles[id] = new Particle(Util.rand(150, 200), Util.rand(spawnPosition.minX, spawnPosition.maxX), Util.rand(spawnPosition.minY, spawnPosition.maxY), Util.rand(1, 20), canvas.height);
+        }
+
         //draw every frame
-		var draw = function () {
-            context.fillStyle   = "rgba(0,0,20,0.5)"
+        var draw = function () {
+            context.fillStyle = "rgba(0,0,20,0.5)"
             context.fillRect(0, 0, canvas.width, canvas.height);
 
             for (var i = 0; i < maxParticleCount; i++) {
                 if (particles[i].pos.y > canvas.height) {
                     createNewParticle(i);
                 }
-                var windForceX = 0.02 + (noise.simplex2((particles[i].pos.x + frameCount)/500, (particles[i].pos.y + frameCount)/1000)*0.5+0.5)/50;
+                var windForceX = 0.02 + (noise.simplex2((particles[i].pos.x + frameCount) / 500, (particles[i].pos.y + frameCount) / 1000) * 0.5 + 0.5) / 50;
                 var windForceY = 0;
 
                 particles[i].update(gForceX, gForceY, windForceX, windForceY);
                 particles[i].draw(context);
             }
-            
-        	frameCount = frameCount+1;
-        	requestAnimationFrame(draw);
-      	};
+
+            frameCount = frameCount + 1;
+            requestAnimationFrame(draw);
+        };
 
 
         // init particles and attractors
         init();
-        
+
         // start loop
-      	draw();
+        draw();
 
 
     </script>
 
-  </body>
+</body>
 
-</html>      
+</html>
