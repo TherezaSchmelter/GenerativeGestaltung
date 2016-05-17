@@ -27,6 +27,7 @@
  		spawnPosition.minY = canvas.height - 50;
  		spawnPosition.maxY = canvas.height - 100;
 
+        //force for the particles to move up
  		var force = {x:0,y:-0.05};
 
 		var particles = [];
@@ -51,6 +52,7 @@
                 if (particles[i].currentLifeTime < 0) {
                     createNewParticle(i);
                 }
+                //creates a "random" force on the x-axis for random movement
                 var windForce = { x: noise.perlin3(particles[i].pos.x*100000, particles[i].pos.y*100000,frameCount)/5, y: 0 };
                 particles[i].update(force, windForce);
                 particles[i].draw(context, frameCount);

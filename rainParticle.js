@@ -24,6 +24,7 @@ Particle.prototype.update = function (forceX, forceY, windForceX, windForceY) {
     this.vel.x += forceX + windForceX;
     this.vel.y += forceY + windForceY;
 
+    //calulate the currentForce --> "direction" of the raindrop is based on that
     this.lastForce.x = forceX + windForceX;
     this.lastForce.y = forceY + windForceY;
     
@@ -33,7 +34,7 @@ Particle.prototype.update = function (forceX, forceY, windForceX, windForceY) {
     this.lifeTime -= 1;
 }
 
-//normalize function
+//normalize a 2d vector
 var normalizeVector = function(vector){
     var length = Math.sqrt((vector.x * vector.x) + (vector.y * vector.y))
     if (length != 1){
