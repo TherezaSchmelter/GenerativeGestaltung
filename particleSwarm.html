@@ -5,7 +5,7 @@
 <body>
     <canvas id="myCanvas" width="1200" height="800"></canvas>
     <script type="text/javascript" src="perlin.js"></script>
-    <script type="text/javascript" src="rainParticle.js"></script>
+    <script type="text/javascript" src="swarmParticle.js"></script>
     <script type="text/javascript" src="gg_utils.js"></script>
 
     <script>
@@ -17,18 +17,51 @@
  		var frameCount = 0;
 
 		//scene statics
-		var maxParticleCount = 50;
+		var maxParticleCount = 100;
 
+		var foodSourcePos = { x: Util.rand(0, canvas.width), y: Util.rand(0, canvas.height) };
+		var foodSourceVel = {x:1,y:1};
 		var particles = [];
 
         //initiate particles
 		var init = function () {
-		    console.log("init");
+		    for (var i = 0; i < maxParticleCount; i++) {
+		        particles[i] = new Particle(Util.rand(0, canvas.width), Util.rand(0,canvas.height));
+		    }
 		}
         //draw every frame
 		var draw = function () {
-            context.fillStyle   = "rgba(0,0,20,0.5)"
+            context.fillStyle   = "rgba(255,255,255,0.5)"
             context.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (foodSourcePos.x < 0 || foodSourcePos.x > canvas.width) {
+                foodSourceVel.x *= -1;
+            }
+            if (foodSourcePos.y < 0 || foodSourcePos.y > canvas.height) {
+                foodSourceVel.y *= -1;
+            }
+            foodSourcePos.x += foodSourceVel.x;
+            foodSourcePos.y += foodSourceVel.y;
+
+            context.beginPath();
+            context.strokeStyle = "rgba(100,255,100,1)";
+            context.lineWidth = 5;
+            context.arc(foodSourcePos.x, foodSourcePos.y, 10, 0, 2 * Math.PI);
+            context.stroke();
+
+            var bestSolutionPos;
+            var bestSolutionDist = Util.dist({x:0,y:0}, {x:canvas.width,y:canvas.height});
+
+            for (var i = 0; i < particles.length; i++) {
+                if (bestSolutionDist > Util.dist(foodSourcePos, particles[i].pos)) {
+                    bestSolutionPos = particles[i].pos;
+                }
+            }
+
+            for (var i = 0; i < particles.length; i++){
+                particles[i].update(foodSourcePos, bestSolutionPos, 2*noise.simplex2(particles[i].pos.x/100 + i, particles[i].pos.y/100+ i), 2*noise.simplex3(particles[i].pos.x/100 + i, particles[i].pos.y/100 + i,frameCount/100));
+                particles[i].draw(context);
+            }
 
         	frameCount = frameCount+1;
         	requestAnimationFrame(draw);
