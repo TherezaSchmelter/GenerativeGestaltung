@@ -1,0 +1,255 @@
+<html>
+  <body>
+
+    <script src="threeJS/build/three.js"></script>
+    <script type="text/javascript" src="perlin.js"></script>
+
+      <script id="vertexShader" type="x-shader/x-vertex">
+            
+        #define PI 3.14159
+ 
+        precision mediump float;
+        precision mediump int;
+        
+        
+        // comes with framework
+        uniform mat4 modelViewMatrix; // optional
+        uniform mat4 projectionMatrix; // optional
+        
+        
+        // user defined uniforms, values are passed in runtime
+        uniform float time;
+        
+        // user defined attributes
+        attribute vec3 position;
+        attribute vec4 color;
+        attribute vec3 normal;
+        
+        
+        // data to be passed to fragment shader
+        varying vec3 vPosition;
+        varying vec4 vColor;
+		varying vec3 vNormal;
+        
+        void main() {
+          
+		  vNormal = normal;
+          vec3 posTmp = position;
+          
+          // control height dynamically with time value
+          //posTmp.y *= (time*0.001);
+  
+          // calcuate pixel position on screen and pass to fragment shader
+          gl_Position = projectionMatrix * modelViewMatrix * vec4 (posTmp, 1.0);
+
+          // pass world coords position to fragment shader
+          vPosition = position;
+
+          // pass color to fragment shader
+          vColor = color;
+        }
+
+        </script>
+        
+        <script id="fragmentShader" type="x-shader/x-fragment">
+            
+          precision mediump float;
+          precision mediump int;
+          
+          // input from vertex shader
+          varying vec3 vPosition;
+          varying vec4 vColor;
+		  varying vec3 vNormal;
+          
+          void main() {
+				float light = 1.0;//dot(vNormal, vec3(0.5,0.5,0);
+                gl_FragColor = vec4(0.0, 0.0, 1.0, 1.0) * (vPosition.y/200.0) ;//vec4(vNormal,1.0);//
+              
+          }
+        </script>
+        
+    <script>
+      
+      
+    // global variables
+	var cnt = 0;
+    var terrainResolution = 512;
+    var frameCnt = 0;
+	
+	//terrain values
+	var terrainSize = 50;
+	var terrainMaxHeight = 75;
+      
+    var scene;
+    var camera;
+	var mesh;
+	var renderer;
+	
+	var heightArray;
+	var waterArray;
+	var waterHeightArray;
+	
+	var positions = new Float32Array (terrainResolution*terrainResolution*18);
+	var colors    = new Float32Array (terrainResolution*terrainResolution*18);
+	var normal    = new Float32Array (terrainResolution*terrainResolution*18);
+	
+	var addQuad = function (positions, x, z) {
+
+		var quadID = x + z * terrainResolution;
+
+        positions [quadID*6*3+0] = x;
+        positions [quadID*6*3+1] = heightArray[x][z];
+        positions [quadID*6*3+2] = z;
+
+        x0 = x+1;
+        z0 = z;
+        positions [quadID*6*3+3] = x+1;
+        positions [quadID*6*3+4] = heightArray[x+1][z];
+        positions [quadID*6*3+5] = z;
+      
+        z0 = z+1;
+        positions [quadID*6*3+6] = x+1;
+        positions [quadID*6*3+7] = heightArray[x+1][z+1];
+        positions [quadID*6*3+8] = z+1;
+        
+        x0 = x;
+        z0 = z;
+        positions [quadID*6*3+9] = x0;
+        positions [quadID*6*3+10] = heightArray[x0][z0];
+        positions [quadID*6*3+11] = z0;
+    
+        z0 = z+1;
+        positions [quadID*6*3+12] = x0;
+        positions [quadID*6*3+13] = heightArray[x0][z0];
+        positions [quadID*6*3+14] = z0;
+        
+        x0 = x+1;
+        positions [quadID*6*3+15] = x0;
+        positions [quadID*6*3+16] = heightArray[x0][z0];
+        positions [quadID*6*3+17] = z0;
+        cnt += 1;
+      }
+	  
+	var updateQuad = function (positions, x,y){
+		var quadID = x + z * terrainResolution;
+		
+		positions [quadID*6*3+1] = heightArray[x][z];
+		
+		x0 = x+1;
+        z0 = z;
+		positions [quadID*6*3+4] = heightArray[x0][z0];
+		
+		z0 = z+1;
+		positions [quadID*6*3+7] = heightArray[x0][z0];
+		
+		x0 = x;
+        z0 = z;
+		positions [quadID*6*3+10] = heightArray[x0][z0];
+		
+		z0 = z+1;
+		positions [quadID*6*3+13] = heightArray[x0][z0];
+		
+		x0 = x+1;
+		positions [quadID*6*3+16] = heightArray[x0][z0];
+	}
+	  
+	function createTerrain(){
+	
+        var material = new THREE.RawShaderMaterial( {
+			uniforms: {
+				time: { type: "f", value: 1.0 }
+			},
+
+			vertexShader: document.getElementById ('vertexShader').textContent,
+			fragmentShader: document.getElementById ('fragmentShader').textContent,
+			side: THREE.DoubleSide,
+			transparent: true
+        });
+					
+		generateHeight( terrainResolution, terrainResolution );
+					
+		var geometry = new THREE.BufferGeometry();
+
+        for (var i=0; i<terrainResolution-1; i++) {
+            for (var j=0; j<terrainResolution-1; j++) {
+                addQuad (positions, i, j);
+            }
+        }
+        
+        geometry.addAttribute ("position", new THREE.BufferAttribute (positions, 3));
+        geometry.addAttribute ("color",    new THREE.BufferAttribute (colors, 3));
+        geometry.addAttribute ("normal",   new THREE.BufferAttribute (normal, 3));
+		
+		mesh = new THREE.Mesh(geometry, material );
+		//mesh.rotateX( - Math.PI / 2 );
+		
+		return mesh;
+	}
+	
+	function generateHeight( width, height ) {
+
+		heightArray = new Array(width);
+		waterArray = new Array(width);
+		waterHeightArray= new Array(width);
+		
+		for (var i = 0; i < width; i++) {
+			heightArray[i] = new Array(height);
+			waterArray[i] = new Array(height);
+			waterHeightArray[i]= new Array(height);
+		}
+		
+		var size = width * height; 
+		var data = new Uint8Array( size );
+		var quality = 2;
+		var z = Math.random() * 100;
+		
+		for( var a = 0; a < 4; a ++ ) {
+			for ( var i = 0; i < width; i ++ ) {
+				for ( var j = 0; j < height; j ++ ) {
+				if(isNaN(heightArray[i][j])){ 
+					heightArray[i][j] = 0;
+				}
+					heightArray[i][j] += (noise.simplex3(i/quality,j/quality,z)*0.5+0.5) * terrainMaxHeight * quality/100;
+				}
+			}
+			quality *= 5;
+		}
+	}
+
+    function init() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera (70, window.innerWidth/window.innerHeight, 0.1, 50000);
+
+      // default params
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize (window.innerWidth, window.innerHeight);
+      document.body.appendChild (renderer.domElement);
+      
+      
+      // create one mesh and add to scene
+      mesh = createTerrain();
+      scene.add(mesh);
+    }
+
+      // basic render loop
+      var render = function () {
+        
+        camera.position.x = 600;
+        camera.position.z = 600;
+        camera.position.y = 600;
+        
+        
+        camera.lookAt (new THREE.Vector3 (0,0,0));
+        frameCnt += 1;
+        
+        requestAnimationFrame (render);
+        renderer.render (scene, camera);
+      };
+
+      // start
+      init();
+      render();
+       
+    </script>
+  </body>
+</html>
