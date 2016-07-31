@@ -10,13 +10,11 @@
  
         precision mediump float;
         precision mediump int;
-        
-        
+
         // comes with framework
         uniform mat4 modelViewMatrix; // optional
         uniform mat4 projectionMatrix; // optional
-        
-        
+
         // user defined uniforms, values are passed in runtime
         uniform float time;
         
@@ -24,28 +22,20 @@
         attribute vec3 position;
         attribute vec4 color;
         attribute vec3 normal;
-        
-        
+
         // data to be passed to fragment shader
         varying vec3 vPosition;
         varying vec4 vColor;
 		varying vec3 vNormal;
         
         void main() {
-          
 		  vNormal = normal;
           vec3 posTmp = position;
-          
-          // control height dynamically with time value
-          //posTmp.y *= (time*0.001);
-  
+
           // calcuate pixel position on screen and pass to fragment shader
           gl_Position = projectionMatrix * modelViewMatrix * vec4 (posTmp, 1.0);
 
-          // pass world coords position to fragment shader
           vPosition = position;
-
-          // pass color to fragment shader
           vColor = color;
         }
 
@@ -55,15 +45,18 @@
             
           precision mediump float;
           precision mediump int;
-          
+
+          uniform float terrainResolution;
+
           // input from vertex shader
           varying vec3 vPosition;
           varying vec4 vColor;
 		  varying vec3 vNormal;
           
           void main() {
-				float light = 1.0;//dot(vNormal, vec3(0.5,0.5,0);
-                gl_FragColor = vec4(0.0, 0.0, 1.0, 1.0) * (vPosition.y/200.0) ;//vec4(vNormal,1.0);//
+                vec2 uv = vec2(vPosition.x/terrainResolution,vPosition.z/terrainResolution);
+				float light = dot(vNormal, vec3(0.5,-0.5,0)) *0.5 + 0.5;
+                gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0) * light;
               
           }
         </script>
@@ -97,72 +90,74 @@
 
 		var quadID = x + z * terrainResolution;
 
-        positions [quadID*6*3+0] = x;
-        positions [quadID*6*3+1] = heightArray[x][z];
-        positions [quadID*6*3+2] = z;
+        addVertex(quadID*6*3+0, x, heightArray[x][z], z);
+        addVertex(quadID*6*3+3, x+1, heightArray[x+1][z+1], z+1);
+        addVertex(quadID*6*3+6, x+1, heightArray[x+1][z], z);
 
-        x0 = x+1;
-        z0 = z;
-        positions [quadID*6*3+3] = x+1;
-        positions [quadID*6*3+4] = heightArray[x+1][z];
-        positions [quadID*6*3+5] = z;
-      
-        z0 = z+1;
-        positions [quadID*6*3+6] = x+1;
-        positions [quadID*6*3+7] = heightArray[x+1][z+1];
-        positions [quadID*6*3+8] = z+1;
-        
-        x0 = x;
-        z0 = z;
-        positions [quadID*6*3+9] = x0;
-        positions [quadID*6*3+10] = heightArray[x0][z0];
-        positions [quadID*6*3+11] = z0;
-    
-        z0 = z+1;
-        positions [quadID*6*3+12] = x0;
-        positions [quadID*6*3+13] = heightArray[x0][z0];
-        positions [quadID*6*3+14] = z0;
-        
-        x0 = x+1;
-        positions [quadID*6*3+15] = x0;
-        positions [quadID*6*3+16] = heightArray[x0][z0];
-        positions [quadID*6*3+17] = z0;
+        addVertex(quadID*6*3+9, x, heightArray[x][z], z);
+        addVertex(quadID*6*3+12, x, heightArray[x][z+1], z+1);
+        addVertex(quadID*6*3+15, x+1, heightArray[x+1][z+1], z+1);
+
         cnt += 1;
       }
+
+      var addVertex = function (id, x, y, z){
+        positions [id+0] = x;
+        positions [id+1] = y;
+        positions [id+2] = z;
+
+        calculateNormal(id,x,y,z);
+      }
+
+      var calculateNormal = function(id, x, y, z){
+        var newNormal = [0.0,0.0,0.0];
+        var heightLeft = heightArray[x][z] - ((x == 0)? heightArray[x][z]: heightArray[x-1][z]);
+        var heightRight = heightArray[x][z] - ((x == terrainResolution - 1)? heightArray[x][z]: heightArray[x+1][z]);
+        var heightDown = heightArray[x][z] - ((z == 0)? heightArray[x][z]: heightArray[x][z-1]);
+        var heightUp = heightArray[x][z] - ((z == terrainResolution - 1)? heightArray[x][z]:heightArray[x][z+1]);
+
+        newNormal[0] = heightLeft - heightRight;
+        newNormal[1] = heightDown - heightUp;
+        newNormal[2] = 2.0;
+
+        var normalizedNormal = normalize(newNormal);
+
+        normal[id+0] = normalizedNormal[0];
+        normal[id+1] = normalizedNormal[1];
+        normal[id+2] = normalizedNormal[2];
+      }
+
+      var normalize = function(vec){
+        var length = Math.sqrt((vec[0]*vec[0]) + (vec[1]*vec[1]) + (vec[2] *vec[2]));
+        vec[0] = vec[0]/length;
+        vec[1] = vec[1]/length;
+        vec[2] = vec[2]/length;
+        return vec;
+      }
 	  
-	var updateQuad = function (positions, x,y){
+	var updateQuad = function (positions, x,y,z){
 		var quadID = x + z * terrainResolution;
 		
 		positions [quadID*6*3+1] = heightArray[x][z];
-		
-		x0 = x+1;
-        z0 = z;
-		positions [quadID*6*3+4] = heightArray[x0][z0];
-		
-		z0 = z+1;
-		positions [quadID*6*3+7] = heightArray[x0][z0];
-		
-		x0 = x;
-        z0 = z;
-		positions [quadID*6*3+10] = heightArray[x0][z0];
-		
-		z0 = z+1;
-		positions [quadID*6*3+13] = heightArray[x0][z0];
-		
-		x0 = x+1;
-		positions [quadID*6*3+16] = heightArray[x0][z0];
+        positions [quadID*6*3+4] = heightArray[x+1][z+1];
+		positions [quadID*6*3+7] = heightArray[x+1][z];
+
+		positions [quadID*6*3+10] = heightArray[x][z];
+		positions [quadID*6*3+13] = heightArray[x][z+1];
+		positions [quadID*6*3+16] = heightArray[x+1][z+1];
 	}
 	  
 	function createTerrain(){
 	
         var material = new THREE.RawShaderMaterial( {
 			uniforms: {
-				time: { type: "f", value: 1.0 }
+				time: { type: "f", value: 1.0 },
+				terrainResolution: { type: "f", value: terrainResolution}
 			},
 
 			vertexShader: document.getElementById ('vertexShader').textContent,
 			fragmentShader: document.getElementById ('fragmentShader').textContent,
-			side: THREE.DoubleSide,
+			side: THREE.FrontSide,
 			transparent: true
         });
 					
@@ -216,6 +211,10 @@
 		}
 	}
 
+	var simulateWater = function (){
+
+    }
+
     function init() {
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera (70, window.innerWidth/window.innerHeight, 0.1, 50000);
@@ -237,8 +236,7 @@
         camera.position.x = 600;
         camera.position.z = 600;
         camera.position.y = 600;
-        
-        
+
         camera.lookAt (new THREE.Vector3 (0,0,0));
         frameCnt += 1;
         
