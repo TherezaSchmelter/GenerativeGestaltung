@@ -56,7 +56,7 @@
           void main() {
                 vec2 uv = vec2(vPosition.x/terrainResolution,vPosition.z/terrainResolution);
 				float light = dot(vNormal, vec3(0.5,-0.5,0)) *0.5 + 0.5;
-                gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0) * light;
+                gl_FragColor = vec4(vec3(0.0, 1.0, 0.0) * light,1.0);
               
           }
         </script>
@@ -66,7 +66,7 @@
       
     // global variables
 	var cnt = 0;
-    var terrainResolution = 512;
+    var terrainResolution = 256;
     var frameCnt = 0;
 	
 	//terrain values
@@ -77,6 +77,10 @@
     var camera;
 	var mesh;
 	var renderer;
+    var geometry;
+
+    var modRange = 12;
+    var modStrength = 10;
 	
 	var heightArray;
 	var waterArray;
@@ -85,6 +89,12 @@
 	var positions = new Float32Array (terrainResolution*terrainResolution*18);
 	var colors    = new Float32Array (terrainResolution*terrainResolution*18);
 	var normal    = new Float32Array (terrainResolution*terrainResolution*18);
+
+    var helper;
+    var container;
+
+    var raycaster = new THREE.Raycaster();
+    var mouse = new THREE.Vector2();
 	
 	var addQuad = function (positions, x, z) {
 
@@ -101,7 +111,7 @@
         cnt += 1;
       }
 
-      var addVertex = function (id, x, y, z){
+    var addVertex = function (id, x, y, z){
         positions [id+0] = x;
         positions [id+1] = y;
         positions [id+2] = z;
@@ -109,7 +119,7 @@
         calculateNormal(id,x,y,z);
       }
 
-      var calculateNormal = function(id, x, y, z){
+    var calculateNormal = function(id, x, y, z){
         var newNormal = [0.0,0.0,0.0];
         var heightLeft = heightArray[x][z] - ((x == 0)? heightArray[x][z]: heightArray[x-1][z]);
         var heightRight = heightArray[x][z] - ((x == terrainResolution - 1)? heightArray[x][z]: heightArray[x+1][z]);
@@ -127,7 +137,7 @@
         normal[id+2] = normalizedNormal[2];
       }
 
-      var normalize = function(vec){
+    var normalize = function(vec){
         var length = Math.sqrt((vec[0]*vec[0]) + (vec[1]*vec[1]) + (vec[2] *vec[2]));
         vec[0] = vec[0]/length;
         vec[1] = vec[1]/length;
@@ -163,7 +173,7 @@
 					
 		generateHeight( terrainResolution, terrainResolution );
 					
-		var geometry = new THREE.BufferGeometry();
+		geometry = new THREE.BufferGeometry();
 
         for (var i=0; i<terrainResolution-1; i++) {
             for (var j=0; j<terrainResolution-1; j++) {
@@ -194,7 +204,7 @@
 		}
 		
 		var size = width * height; 
-		var data = new Uint8Array( size );
+		//var data = new Uint8Array( size );
 		var quality = 2;
 		var z = Math.random() * 100;
 		
@@ -215,6 +225,25 @@
 
     }
 
+    var modifyTerrain = function (modifier, center){
+      var startX = Math.floor(center.x) - modRange;
+      var startY = Math.floor(center.y) - modRange;
+
+      for (var i = startX; i < startX + modRange*2; i++) {
+        for (var j = startY; j < startY + modRange*2; j++) {
+          var distance = new THREE.Vector2(center.x, center.y).distanceTo(new THREE.Vector2(i,j));
+          heightArray[i][j] += modifier * modStrength * Math.min(Math.max(Math.cos(distance/modRange * Math.PI/2),0),1);
+        }
+      }
+      for (var i = startX; i < startX + modRange*2; i++) {
+        for (var j = startY; j < startY + modRange*2; j++) {
+          addQuad(positions, i, j);
+        }
+      }
+      geometry.attributes.position.needsUpdate = true;
+      geometry.attributes.normal.needsUpdate = true;
+    }
+
     function init() {
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera (70, window.innerWidth/window.innerHeight, 0.1, 50000);
@@ -223,6 +252,7 @@
       renderer = new THREE.WebGLRenderer();
       renderer.setSize (window.innerWidth, window.innerHeight);
       document.body.appendChild (renderer.domElement);
+      document.body.addEventListener( 'mousedown', onDocumentMouseDown, false );
       
       
       // create one mesh and add to scene
@@ -233,9 +263,9 @@
       // basic render loop
       var render = function () {
         
-        camera.position.x = 600;
-        camera.position.z = 600;
-        camera.position.y = 600;
+        camera.position.x = 300;
+        camera.position.z = 300;
+        camera.position.y = 300;
 
         camera.lookAt (new THREE.Vector3 (0,0,0));
         frameCnt += 1;
@@ -247,7 +277,49 @@
       // start
       init();
       render();
-       
+
+
+    function onDocumentMouseDown( event ) {
+      mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
+      mouse.y = -( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      // See if the ray from the camera into the world hits one of our meshes
+      var intersects = raycaster.intersectObject(mesh);
+
+      // Toggle rotation bool for meshes that we clicked
+      if (intersects.length > 0) {
+        console.log(event.button);
+        var modifier;
+        if (event.button == 0){
+          modifier = 1;
+        }else if(event.button == 2){
+          modifier = -1;
+        }
+        modifyTerrain(modifier,new THREE.Vector2(intersects[0].point.x, intersects[0].point.z));
+        console.log("hit: " + intersects[0].point.x +" " + intersects[0].point.z);
+      }
+    }
+
+    function onMouseMove( event ) {
+      mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
+      mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
+      raycaster.setFromCamera( mouse, camera );
+
+      // See if the ray from the camera into the world hits one of our meshes
+      var intersects = raycaster.intersectObject( mesh );
+
+      // Toggle rotation bool for meshes that we clicked
+      if ( intersects.length > 0 ) {
+        console.log("hit: " + intersects[ 0 ].point.x);
+        //helper.position.set( 0, 0, 0 );
+        //helper.lookAt( intersects[ 0 ].face.normal );
+
+        //helper.position.copy( intersects[ 0 ].point );
+      }
+    }
+
+
     </script>
   </body>
 </html>
