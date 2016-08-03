@@ -293,7 +293,7 @@
         var modifier;
         if (event.button == 0){
           modifier = 1;
-        }else if(event.button == 2){
+        }else{
           modifier = -1;
         }
         modifyTerrain(modifier,new THREE.Vector2(intersects[0].point.x, intersects[0].point.z));
