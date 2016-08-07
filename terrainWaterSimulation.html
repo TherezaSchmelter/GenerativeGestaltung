@@ -262,8 +262,8 @@
           heightArray[i][j] += modifier * modStrength * Math.min(Math.max(Math.cos(distance/modRange * Math.PI/2),0),1);
         }
       }
-      for (var i = startX; i < startX + modRange*2; i++) {
-        for (var j = startY; j < startY + modRange*2; j++) {
+      for (var i = startX-1; i < startX + modRange*2+1; i++) {
+        for (var j = startY-1; j < startY + modRange*2+1; j++) {
           addQuad(positions, i, j);
         }
       }
