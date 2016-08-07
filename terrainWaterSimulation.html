@@ -56,14 +56,20 @@
 		  varying vec3 vNormal;
           
           void main() {
-                vec2 uv = vec2(vPosition.x/terrainResolution,vPosition.z/terrainResolution);
-				vec4 gras = texture2D(grasTexture, uv);
-				vec4 rock = texture2D(rockTexture, uv);
+                vec2 uv = vec2(vPosition.x/terrainResolution,vPosition.z/terrainResolution)*vec2(10.0,10.0);
+				vec4 gras = texture2D(grasTexture, vec2(mod(uv.x,1.0),mod(uv.y,1.0)));
+				vec4 rock = texture2D(rockTexture, vec2(mod(uv.x,1.0),mod(uv.y,1.0)));
+				
+				float tangent = dot(vNormal, vec3(0.0,0.0,1.0));
+				float terrainMix = smoothstep(0.2,0.8,tangent);
+				float height = smoothstep(vPosition.y,vPosition.y+20.0, terrainResolution/2.0);
+				vec4 texture = mix(rock,gras, terrainMix*height);
 				float light = dot(vNormal, vec3(0.5,-0.5,0)) *0.5 + 0.5;
-                //gl_FragColor = vec4(vec3(0.0, 1.0, 0.0) * light,1.0);
-				gl_FragColor = vec4(gras.rgb * light,1.0);
-              
+				
+				gl_FragColor = vec4(texture.rgb * light,1.0);
           }
+		  
+
         </script>
         
     <script>
@@ -71,12 +77,12 @@
       
     // global variables
 	var cnt = 0;
-    var terrainResolution = 256;
+    var terrainResolution = 128;
     var frameCnt = 0;
 	
 	//terrain values
 	var terrainSize = 50;
-	var terrainMaxHeight = 75;
+	var terrainMaxHeight = terrainResolution/3;
       
     var scene;
     var camera;
@@ -167,6 +173,16 @@
 	  
 	function createTerrain(){
 	
+		
+
+		var textureGras = THREE.ImageUtils.loadTexture(grasTextureFile);
+		//textureGras.wrapS = textureGras.wrapT = THREE.RepeatWrapping;
+		//textureGras.repeat.set( 2, 2 );
+		
+		//var textureRock = THREE.ImageUtils.loadTexture(rockTextureFile);
+		//textureRock.wrapS = textureRock.wrapT = THREE.RepeatWrapping;
+		//textureRock.repeat.set( 2, 2 );
+
 		THREE.ImageUtils.crossOrigin = '';
         var material = new THREE.RawShaderMaterial( {
 			uniforms: {
@@ -216,7 +232,7 @@
 		
 		var size = width * height; 
 		//var data = new Uint8Array( size );
-		var quality = 2;
+		var quality = 1.5;
 		var z = Math.random() * 100;
 		
 		for( var a = 0; a < 4; a ++ ) {
@@ -274,9 +290,9 @@
       // basic render loop
       var render = function () {
         
-        camera.position.x = 300;
-        camera.position.z = 300;
-        camera.position.y = 300;
+        camera.position.x = 150;
+        camera.position.z = 150;
+        camera.position.y = 150;
 
         camera.lookAt (new THREE.Vector3 (0,0,0));
         frameCnt += 1;
