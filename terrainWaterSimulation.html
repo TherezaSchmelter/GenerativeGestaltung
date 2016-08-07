@@ -57,10 +57,11 @@
           
           void main() {
                 vec2 uv = vec2(vPosition.x/terrainResolution,vPosition.z/terrainResolution);
-				vec4 col = texture2D(grasTexture, uv);
+				vec4 gras = texture2D(grasTexture, uv);
+				vec4 rock = texture2D(rockTexture, uv);
 				float light = dot(vNormal, vec3(0.5,-0.5,0)) *0.5 + 0.5;
                 //gl_FragColor = vec4(vec3(0.0, 1.0, 0.0) * light,1.0);
-				gl_FragColor = vec4(col.rgb * light,1.0);
+				gl_FragColor = vec4(gras.rgb * light,1.0);
               
           }
         </script>
@@ -100,8 +101,8 @@
     var raycaster = new THREE.Raycaster();
     var mouse = new THREE.Vector2();
 	
-	var grasTextureFile = "gras.jpg";
-	var rockTextureFile = "rock.jpg";
+	var grasTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/gras.jpg";//"gras.jpg";
+	var rockTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/rock.jpg"; //"rock.jpg";
 	
 	var addQuad = function (positions, x, z) {
 
