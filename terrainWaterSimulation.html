@@ -66,7 +66,9 @@
 				float terrainMix = smoothstep(0.2,0.8,tangent);
 				float height = smoothstep(vPosition.y,vPosition.y+20.0, terrainResolution/2.0);
 				vec4 terrainTexture = mix(rock,gras, terrainMix*height);
-				float waterLerpTextureColor = 1.0-texture2D(waterLerpTexture, uv).r;
+				vec2 uvWater = vec2(uv.x, 1.0-uv.y);
+				uvWater = vec2(mod(uvWater.x,1.0),mod(uvWater.y,1.0));
+				float waterLerpTextureColor = 1.0-texture2D(waterLerpTexture, uvWater).r;
 				vec4 terrainWithWater = mix(vec4(0.0,0.0,1.0,1.0), terrainTexture, waterLerpTextureColor);
 				float light = dot(vNormal, vec3(0.5,-0.5,0)) *0.5 + 0.5;
 				
@@ -264,7 +266,7 @@
 		//waterHeightArray
 		var simulate = waterQueue.length/3;
 		console.log("length" + simulate);
-		for(var i = 0; i < simulate && i < 50*3; i++){
+		for(var i = 0; i < simulate && i < 1000*3; i++){
 			var posx = waterQueue.shift();
 			var posz = waterQueue.shift();
 			var height = waterQueue.shift();
@@ -320,27 +322,32 @@
 	}
 	
 	var simulateWaterPosition = function(x, y, height){
-		waterArray[x][y] = 1;
 		
-		if(x + 1 <= terrainResolution -1 && heightArray[x+1][y] <=height && waterArray[x+1][y] != 1){
+		var waterHeight = height;
+		
+		if(x + 1 <= terrainResolution -1 && heightArray[x+1][y] < waterHeight && waterArray[x+1][y] != 1){
 			waterQueue.push(x+1);
 			waterQueue.push(y); 
 			waterQueue.push(heightArray[x+1][y]);
+			waterArray[x+1][y] = 1;
 		}
-		if(x - 1 >= 0 && heightArray[x-1][y] <=height && waterArray[x-1][y]!= 1){
+		if(x - 1 >= 0 && heightArray[x-1][y] < waterHeight && waterArray[x-1][y]!= 1){
 			waterQueue.push(x-1); 
 			waterQueue.push(y);
 			waterQueue.push(heightArray[x-1][y]);
+			waterArray[x-1][y] = 1;
 		}
-		if(y + 1 <= terrainResolution-1 && heightArray[x][y+1] <=height&& waterArray[x][y+1]!= 1){
+		if(y + 1 <= terrainResolution-1 && heightArray[x][y+1] < waterHeight&& waterArray[x][y+1]!= 1){
 			waterQueue.push(x);
 			waterQueue.push(y+1);
 			waterQueue.push(heightArray[x][y+1]);
+			waterArray[x][y+1] = 1;
 		}
-		if(y - 1 >= 0 && heightArray[x][y-1] <=height&& waterArray[x][y-1] != 1){
+		if(y - 1 >= 0 && heightArray[x][y-1] < waterHeight&& waterArray[x][y-1] != 1){
 			waterQueue.push(x);
 			waterQueue.push(y-1);
 			waterQueue.push(heightArray[x][y-1]);
+			waterArray[x][y-1] = 1;
 		}
 	}
 	
@@ -389,9 +396,10 @@
       mesh = createTerrain();
       scene.add(mesh);
 	  
-	  waterQueue.push(127);
-	  waterQueue.push(127);
-	  waterQueue.push( heightArray[127][127]);
+	  waterQueue.push(65);
+	  waterQueue.push(65);
+	  waterQueue.push( heightArray[65][65]);
+	  waterArray[65][65] = 1;
     }
 
       // basic render loop
