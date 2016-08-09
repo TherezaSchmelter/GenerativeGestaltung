@@ -98,7 +98,7 @@
     var geometry;
 
     var modRange = 12;
-    var modStrength = 10;
+    var modStrength = 5;
 	
 	var heightArray;
 	var waterArray;
@@ -323,7 +323,7 @@
 	
 	var simulateWaterPosition = function(x, y, height){
 		
-		var waterHeight = height + 0.2;
+		var waterHeight = height;
 		
 		if(x + 1 <= terrainResolution -1 && heightArray[x+1][y] < waterHeight && waterArray[x+1][y] != 1){
 			waterQueue.push(x+1);
@@ -396,11 +396,45 @@
       mesh = createTerrain();
       scene.add(mesh);
 	  
-	  waterQueue.push(65);
-	  waterQueue.push(65);
-	  waterQueue.push( heightArray[65][65]);
-	  waterArray[65][65] = 1;
+	  initWaterSource();
     }
+	
+	var initWaterSource= function(){
+	
+	waterQueue = [];
+	for(var i = terrainResolution/2 -2; i<terrainResolution/2 +2; i++){
+		for(var j = terrainResolution/2 -2; j<terrainResolution/2 +2; j++){
+			waterQueue.push(i);
+			waterQueue.push(j);
+			waterQueue.push(heightArray[i][j]);
+			waterArray[i][j] = 1;
+		}
+	}
+	  /*waterQueue.push(65);
+	  waterQueue.push(65);
+	  waterQueue.push(heightArray[65][65]);
+	  waterArray[65][65] = 1;
+	  
+	  waterQueue.push(64);
+	  waterQueue.push(65);
+	  waterQueue.push(heightArray[64][65]);
+	  waterArray[64][65] = 1;
+	  
+	  waterQueue.push(66);
+	  waterQueue.push(65);
+	  waterQueue.push(heightArray[66][65]);
+	  waterArray[66][65] = 1;
+	  
+	  waterQueue.push(65);
+	  waterQueue.push(64);
+	  waterQueue.push(heightArray[65][64]);
+	  waterArray[65][64] = 1;
+	  
+	  waterQueue.push(65);
+	  waterQueue.push(66);
+	  waterQueue.push(heightArray[65][66]);
+	  waterArray[65][66] = 1;*/
+	}
 
       // basic render loop
       var render = function () {
@@ -437,6 +471,9 @@
         }
         modifyTerrain(modifier,new THREE.Vector2(intersects[0].point.x, intersects[0].point.z));
       }
+	  
+	  createWaterLerpTexture();
+	  initWaterSource();
     }
 
     function onMouseMove( event ) {
