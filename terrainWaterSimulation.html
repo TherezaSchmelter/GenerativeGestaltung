@@ -124,6 +124,9 @@
 	var waterRGBA;
 	var waterTexture;
 	
+	var rotationAngle = 0;
+	var radius;
+	
 	var grasTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/gras.jpg";//"gras.jpg";
 	var rockTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/rock.jpg"; //"rock.jpg";
 	
@@ -325,7 +328,19 @@
 		
 		var waterHeight = height;
 		
-		if(x + 1 <= terrainResolution -1 && heightArray[x+1][y] < waterHeight && waterArray[x+1][y] != 1){
+		var pos = getStrongestDegression(x,y, height);
+		
+		if(waterArray[pos[0]][pos[1]] != 1){
+			waterQueue.push(pos[0]);
+			waterQueue.push(pos[1]); 
+			waterQueue.push(heightArray[pos[0]][pos[1]]);
+			waterArray[pos[0]][pos[1]] = 1;
+			waterHeightArray[pos[0]][pos[1]] = heightArray[pos[0]][pos[1]];
+		}
+		
+		
+		
+		/*if(x + 1 <= terrainResolution -1 && heightArray[x+1][y] < waterHeight && waterArray[x+1][y] != 1){
 			waterQueue.push(x+1);
 			waterQueue.push(y); 
 			waterQueue.push(heightArray[x+1][y]);
@@ -348,7 +363,25 @@
 			waterQueue.push(y-1);
 			waterQueue.push(heightArray[x][y-1]);
 			waterArray[x][y-1] = 1;
+		}*/
+	}
+	
+	var getStrongestDegression = function(x,y, height){
+		var str = [x,y];
+		
+		if(x + 1 <= terrainResolution -1 && heightArray[x+1][y] < height){
+			str = [x+1,y];
 		}
+		if(x - 1 >= 0 && heightArray[x-1][y] < heightArray[str[0]][str[1]]){
+			str = [x-1,y];
+		}
+		if(y + 1 <= terrainResolution-1 && heightArray[x][y+1] < heightArray[str[0]][str[1]]){
+			str = [x, y+1];
+		}
+		if(y - 1 >= 0 && heightArray[x][y-1] < heightArray[str[0]][str[1]]){
+			str = [x, y-1];
+		}
+		return str;
 	}
 	
 
@@ -375,8 +408,8 @@
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera (70, window.innerWidth/window.innerHeight, 0.1, 50000);
 
-	  camera.position.x = terrainResolution/2 + -100 * Math.sin(0);
-      camera.position.z = terrainResolution/2 + -100 * Math.cos (0);
+	  camera.position.x = terrainResolution/2 + -100 * Math.sin(rotationAngle);
+      camera.position.z = terrainResolution/2 + -100 * Math.cos (rotationAngle);
       camera.position.y = 200;
 	  
 	  console.log(camera.position.x + " " + camera.position.z);
@@ -401,39 +434,28 @@
 	
 	var initWaterSource= function(){
 	
-	waterQueue = [];
-	for(var i = terrainResolution/2 -2; i<terrainResolution/2 +2; i++){
-		for(var j = terrainResolution/2 -2; j<terrainResolution/2 +2; j++){
-			waterQueue.push(i);
-			waterQueue.push(j);
-			waterQueue.push(heightArray[i][j]);
-			waterArray[i][j] = 1;
+		waterQueue = [];
+		var size = 1;
+		for(var i = terrainResolution/2 -size; i<=terrainResolution/2 +size; i++){
+			for(var j = terrainResolution/2 -size; j<=terrainResolution/2 +size; j++){
+				waterQueue.push(i);
+				waterQueue.push(j);
+				waterQueue.push(heightArray[i][j]);
+				waterArray[i][j] = 1;
+				waterHeightArray[i][j] = heightArray[i][j];
+			}
 		}
-	}
-	  /*waterQueue.push(65);
-	  waterQueue.push(65);
-	  waterQueue.push(heightArray[65][65]);
-	  waterArray[65][65] = 1;
-	  
-	  waterQueue.push(64);
-	  waterQueue.push(65);
-	  waterQueue.push(heightArray[64][65]);
-	  waterArray[64][65] = 1;
-	  
-	  waterQueue.push(66);
-	  waterQueue.push(65);
-	  waterQueue.push(heightArray[66][65]);
-	  waterArray[66][65] = 1;
-	  
-	  waterQueue.push(65);
-	  waterQueue.push(64);
-	  waterQueue.push(heightArray[65][64]);
-	  waterArray[65][64] = 1;
-	  
-	  waterQueue.push(65);
-	  waterQueue.push(66);
-	  waterQueue.push(heightArray[65][66]);
-	  waterArray[65][66] = 1;*/
+		
+		//random water source points
+		/*for(var i = 0; i <4; i++){
+			var posx = Math.floor(Math.random()*terrainResolution);
+			var posy = Math.floor(Math.random()*terrainResolution);
+			waterQueue.push(posx);
+			waterQueue.push(posy);
+			waterQueue.push(heightArray[posx][posy]);
+			waterArray[posx][posy] = 1;
+		}*/
+		
 	}
 
       // basic render loop
@@ -470,10 +492,9 @@
           modifier = -1;
         }
         modifyTerrain(modifier,new THREE.Vector2(intersects[0].point.x, intersects[0].point.z));
+		createWaterLerpTexture();
+		initWaterSource();
       }
-	  
-	  createWaterLerpTexture();
-	  initWaterSource();
     }
 
     function onMouseMove( event ) {
@@ -481,7 +502,15 @@
 			mouseMove.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
 			mouseMove.y = -( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
 		
-			var diff = mouseMove.x - mouse.x;
+			rotationAngle += -(mouseMove.x - mouse.x)*2;
+			
+			camera.position.x = terrainResolution/2 + -100 * Math.sin(rotationAngle);
+			camera.position.z = terrainResolution/2 + -100 * Math.cos (rotationAngle);
+			camera.position.y = 200;
+	  
+			console.log(camera.position.x + " " + camera.position.z);
+
+			camera.lookAt (new THREE.Vector3 (terrainResolution/2,0,terrainResolution/2));
 				
 			mouse.x = mouseMove.x;
 			mouse.y = mouseMove.y;
