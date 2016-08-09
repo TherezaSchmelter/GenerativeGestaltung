@@ -49,6 +49,7 @@
           uniform float terrainResolution;
 		  uniform sampler2D grasTexture;
 		  uniform sampler2D rockTexture;
+		  uniform sampler2D waterLerpTexture;
 
           // input from vertex shader
           varying vec3 vPosition;
@@ -56,17 +57,21 @@
 		  varying vec3 vNormal;
           
           void main() {
-                vec2 uv = vec2(vPosition.x/terrainResolution,vPosition.z/terrainResolution)*vec2(10.0,10.0);
-				vec4 gras = texture2D(grasTexture, vec2(mod(uv.x,1.0),mod(uv.y,1.0)));
-				vec4 rock = texture2D(rockTexture, vec2(mod(uv.x,1.0),mod(uv.y,1.0)));
+                vec2 uv = vec2(vPosition.x/terrainResolution,vPosition.z/terrainResolution);
+				vec2 uvTexture = uv*vec2(10.0,10.0);
+				vec4 gras = texture2D(grasTexture, vec2(mod(uvTexture.x,1.0),mod(uvTexture.y,1.0)));
+				vec4 rock = texture2D(rockTexture, vec2(mod(uvTexture.x,1.0),mod(uvTexture.y,1.0)));
 				
 				float tangent = dot(vNormal, vec3(0.0,0.0,1.0));
 				float terrainMix = smoothstep(0.2,0.8,tangent);
 				float height = smoothstep(vPosition.y,vPosition.y+20.0, terrainResolution/2.0);
-				vec4 texture = mix(rock,gras, terrainMix*height);
+				vec4 terrainTexture = mix(rock,gras, terrainMix*height);
+				vec4 waterLerpTextureColor = texture2D(waterLerpTexture, uv);
+				vec4 terrainWithWater = mix(vec4(0.0,0.0,1.0,1.0), terrainTexture, texture2D(waterLerpTexture, uv));
 				float light = dot(vNormal, vec3(0.5,-0.5,0)) *0.5 + 0.5;
 				
-				gl_FragColor = vec4(texture.rgb * light,1.0);
+				//gl_FragColor = vec4(terrainWithWater.rgb * light,1.0);
+				gl_FragColor = vec4(vec3(0.1,0.1,0.1) + waterLerpTextureColor.rgb,1.0);
           }
 		  
 
@@ -84,6 +89,7 @@
 	var terrainSize = 50;
 	var terrainMaxHeight = terrainResolution/3;
       
+	var waterSource = [Math.floor(terrainResolution/2), Math.floor(terrainResolution/2)];
     var scene;
     var camera;
 	var mesh;
@@ -95,7 +101,13 @@
 	
 	var heightArray;
 	var waterArray;
+	var waterArray2;
 	var waterHeightArray;
+	var waterHeightArray2;
+	
+	var mousePressed = false;
+	
+	var waterQueue = [];
 	
 	var positions = new Float32Array (terrainResolution*terrainResolution*18);
 	var colors    = new Float32Array (terrainResolution*terrainResolution*18);
@@ -106,6 +118,10 @@
 
     var raycaster = new THREE.Raycaster();
     var mouse = new THREE.Vector2();
+	var mouseMove = new THREE.Vector2();
+	
+	var waterRGBA;
+	var waterTexture;
 	
 	var grasTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/gras.jpg";//"gras.jpg";
 	var rockTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/rock.jpg"; //"rock.jpg";
@@ -172,24 +188,18 @@
 	}
 	  
 	function createTerrain(){
-	
-		
-
-		var textureGras = THREE.ImageUtils.loadTexture(grasTextureFile);
-		//textureGras.wrapS = textureGras.wrapT = THREE.RepeatWrapping;
-		//textureGras.repeat.set( 2, 2 );
-		
-		//var textureRock = THREE.ImageUtils.loadTexture(rockTextureFile);
-		//textureRock.wrapS = textureRock.wrapT = THREE.RepeatWrapping;
-		//textureRock.repeat.set( 2, 2 );
 
 		THREE.ImageUtils.crossOrigin = '';
+		generateHeight( terrainResolution, terrainResolution );
+		createWaterLerpTexture();
+		
         var material = new THREE.RawShaderMaterial( {
 			uniforms: {
 				time: { type: "f", value: 1.0 },
 				terrainResolution: { type: "f", value: terrainResolution},
 				grasTexture: { type: "t", value: THREE.ImageUtils.loadTexture(grasTextureFile)},
-				rockTexture: { type: "t", value: THREE.ImageUtils.loadTexture(rockTextureFile)}
+				rockTexture: { type: "t", value: THREE.ImageUtils.loadTexture(rockTextureFile)},
+				waterLerpTexture: { type: "t", value: waterTexture}
 			},
 
 			vertexShader: document.getElementById ('vertexShader').textContent,
@@ -197,8 +207,6 @@
 			side: THREE.FrontSide,
 			transparent: true
         });
-					
-		generateHeight( terrainResolution, terrainResolution );
 					
 		geometry = new THREE.BufferGeometry();
 
@@ -213,7 +221,6 @@
         geometry.addAttribute ("normal",   new THREE.BufferAttribute (normal, 3));
 		
 		mesh = new THREE.Mesh(geometry, material );
-		//mesh.rotateX( - Math.PI / 2 );
 		
 		return mesh;
 	}
@@ -222,12 +229,16 @@
 
 		heightArray = new Array(width);
 		waterArray = new Array(width);
+		waterArray2 = new Array(width);
 		waterHeightArray= new Array(width);
+		waterHeightArray2= new Array(width);
 		
 		for (var i = 0; i < width; i++) {
 			heightArray[i] = new Array(height);
 			waterArray[i] = new Array(height);
+			waterArray2[i] = new Array(height);
 			waterHeightArray[i]= new Array(height);
+			waterHeightArray2[i]= new Array(height);
 		}
 		
 		var size = width * height; 
@@ -249,8 +260,79 @@
 	}
 
 	var simulateWater = function (){
-
+		//heightArray
+		//waterArray
+		//waterHeightArray
+		for(var i = 0;  waterQueue.length == 0 || i == 50; i++){
+			var pos = waterQueue.shift()
+			simulateWaterPosition(pos[0],pos[1],pos[2]);
+		}
+		
+		waterRGBA = new Uint8Array(4 * terrainResolution * terrainResolution);
+		
+		updateWaterLerpTexture();
     }
+	
+	var createWaterLerpTexture = function(){
+		waterRGBA = new Uint8Array(4 * terrainResolution * terrainResolution);
+		
+		for ( var i = 0; i < terrainResolution; i ++ ) {
+			for ( var j = 0; j < terrainResolution; j ++ ) {
+				var id = i + j*terrainResolution;
+				waterArray[i][j] = 0;
+				waterHeightArray[i][j] = -100;
+				
+				waterRGBA[id*4 + 0] = i*2;
+				waterRGBA[id*4 + 1] = j*2;
+				waterRGBA[id*4 + 2] = 0;
+				waterRGBA[id*4 + 3] = 255;
+			}
+		
+		}
+		
+		waterTexture = new THREE.DataTexture( waterRGBA, terrainResolution, terrainResolution, THREE.RGBAFormat );
+		waterTexture.needsUpdate = true;
+	}
+	
+	var updateWaterLerpTexture = function(){
+		for ( var i = 0; i < terrainResolution; i ++ ) {
+			for ( var j = 0; j < terrainResolution; j ++ ) {
+				var id = i + j*terrainResolution;
+				if(waterArray[i][j] == 1){
+					waterRGBA[id + 0] = 255;
+					waterRGBA[id + 1] = 255;
+					waterRGBA[id + 2] = 255;
+					waterRGBA[id + 3] = 255;
+				}else{
+					waterRGBA[id + 0] = 0;
+					waterRGBA[id + 1] = 0;
+					waterRGBA[id + 2] = 0;
+					waterRGBA[id + 3] = 255;
+				}
+			}
+		}
+		waterTexture = new THREE.DataTexture( waterRGBA, terrainResolution, terrainResolution, THREE.RGBAFormat );
+		waterTexture.needsUpdate = true;
+		mesh.material.uniforms.waterLerpTexture.value = waterTexture;
+	}
+	
+	var simulateWaterPosition = function(x, y, height){
+		waterArray[x][y] = 1;
+		
+		if(x + 1 <= terrainResolution -1 && heightArray[x+1][y] <=height && waterArray[x+1][y] != 1){
+			waterQueue.push([x+1, y, heightArray[x+1][y]]);
+		}
+		if(x - 1 >= 0 && heightArray[x-1][y] <=height && waterArray[x-1][y]!= 1){
+			waterQueue.push([x-1, y, heightArray[x-1][y]]);
+		}
+		if(y + 1 <= terrainResolution-1 && heightArray[x][y+1] <=height&& waterArray[x][y+1]!= 1){
+			waterQueue.push([x, y+1, heightArray[x][y+1]]);
+		}
+		if(y - 1 >= 0 && heightArray[x][y-1] <=height&& waterArray[x][y-1] != 1){
+			waterQueue.push([x, y-1, heightArray[x][y-1]]);
+		}
+	}
+	
 
     var modifyTerrain = function (modifier, center){
       var startX = Math.floor(center.x) - modRange;
@@ -275,27 +357,35 @@
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera (70, window.innerWidth/window.innerHeight, 0.1, 50000);
 
+	  camera.position.x = terrainResolution/2 + -100 * Math.sin(0);
+      camera.position.z = terrainResolution/2 + -100 * Math.cos (0);
+      camera.position.y = 200;
+	  
+	  console.log(camera.position.x + " " + camera.position.z);
+
+      camera.lookAt (new THREE.Vector3 (terrainResolution/2,0,terrainResolution/2));
+	  
       // default params
       renderer = new THREE.WebGLRenderer();
       renderer.setSize (window.innerWidth, window.innerHeight);
       document.body.appendChild (renderer.domElement);
       document.body.addEventListener( 'mousedown', onDocumentMouseDown, false );
+	  document.body.addEventListener( 'mousemove', onMouseMove, false);
+	  document.body.addEventListener( 'mouseup', onMouseUp, false);
       
       
       // create one mesh and add to scene
       mesh = createTerrain();
       scene.add(mesh);
+	  
+	  waterQueue.push(127, 127, heightArray[127][127]);
     }
 
       // basic render loop
       var render = function () {
         
-        camera.position.x = 150;
-        camera.position.z = 150;
-        camera.position.y = 150;
-
-        camera.lookAt (new THREE.Vector3 (0,0,0));
         frameCnt += 1;
+		simulateWater();
         
         requestAnimationFrame (render);
         renderer.render (scene, camera);
@@ -307,6 +397,8 @@
 
 
     function onDocumentMouseDown( event ) {
+	
+	  mousePressed = true;
       mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
       mouse.y = -( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
@@ -316,7 +408,6 @@
 
       // Toggle rotation bool for meshes that we clicked
       if (intersects.length > 0) {
-        console.log(event.button);
         var modifier;
         if (event.button == 0){
           modifier = 1;
@@ -324,26 +415,23 @@
           modifier = -1;
         }
         modifyTerrain(modifier,new THREE.Vector2(intersects[0].point.x, intersects[0].point.z));
-        console.log("hit: " + intersects[0].point.x +" " + intersects[0].point.z);
       }
     }
 
     function onMouseMove( event ) {
-      mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
-      mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
-      raycaster.setFromCamera( mouse, camera );
-
-      // See if the ray from the camera into the world hits one of our meshes
-      var intersects = raycaster.intersectObject( mesh );
-
-      // Toggle rotation bool for meshes that we clicked
-      if ( intersects.length > 0 ) {
-        console.log("hit: " + intersects[ 0 ].point.x);
-        //helper.position.set( 0, 0, 0 );
-        //helper.lookAt( intersects[ 0 ].face.normal );
-
-        //helper.position.copy( intersects[ 0 ].point );
-      }
+		if(mousePressed){
+			mouseMove.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
+			mouseMove.y = -( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
+		
+			var diff = mouseMove.x - mouse.x;
+				
+			mouse.x = mouseMove.x;
+			mouse.y = mouseMove.y;
+		}
+    }
+	
+	function onMouseUp( event ) {
+		mousePressed = false; 
     }
 
     </script>
