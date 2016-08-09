@@ -323,7 +323,7 @@
 	
 	var simulateWaterPosition = function(x, y, height){
 		
-		var waterHeight = height;
+		var waterHeight = height + 0.2;
 		
 		if(x + 1 <= terrainResolution -1 && heightArray[x+1][y] < waterHeight && waterArray[x+1][y] != 1){
 			waterQueue.push(x+1);
