@@ -179,7 +179,7 @@
         return vec;
       }
 	  
-	var updateQuad = function (positions, x,y,z){
+	/*var updateQuad = function (positions, x,y,z){
 		var quadID = x + z * terrainResolution;
 		
 		positions [quadID*6*3+1] = heightArray[x][z];
@@ -189,7 +189,9 @@
 		positions [quadID*6*3+10] = heightArray[x][z];
 		positions [quadID*6*3+13] = heightArray[x][z+1];
 		positions [quadID*6*3+16] = heightArray[x+1][z+1];
-	}
+	}*/
+	
+	
 	  
 	function createTerrain(){
 
@@ -268,7 +270,6 @@
 		//waterArray
 		//waterHeightArray
 		var simulate = waterQueue.length/3;
-		console.log("length" + simulate);
 		for(var i = 0; i < simulate && i < 1000*3; i++){
 			var posx = waterQueue.shift();
 			var posz = waterQueue.shift();
@@ -336,9 +337,9 @@
 			waterQueue.push(heightArray[pos[0]][pos[1]]);
 			waterArray[pos[0]][pos[1]] = 1;
 			waterHeightArray[pos[0]][pos[1]] = heightArray[pos[0]][pos[1]];
+		}else{
+		
 		}
-		
-		
 		
 		/*if(x + 1 <= terrainResolution -1 && heightArray[x+1][y] < waterHeight && waterArray[x+1][y] != 1){
 			waterQueue.push(x+1);
@@ -384,20 +385,28 @@
 		return str;
 	}
 	
+	var fill
 
     var modifyTerrain = function (modifier, center){
-      var startX = Math.floor(center.x) - modRange;
-      var startY = Math.floor(center.y) - modRange;
-
-      for (var i = startX; i < startX + modRange*2; i++) {
-        for (var j = startY; j < startY + modRange*2; j++) {
-          var distance = new THREE.Vector2(center.x, center.y).distanceTo(new THREE.Vector2(i,j));
-          heightArray[i][j] += modifier * modStrength * Math.min(Math.max(Math.cos(distance/modRange * Math.PI/2),0),1);
-        }
-      }
+		console.log(center.x + " "+ center.y);
+	
+		var startX = Math.floor(center.x) - modRange;
+		var startY = Math.floor(center.y) - modRange;
+		console.log(startX + " "+ startY);
+		
       for (var i = startX-1; i < startX + modRange*2+1; i++) {
         for (var j = startY-1; j < startY + modRange*2+1; j++) {
-          addQuad(positions, i, j);
+			if(i >= 0 && i < terrainResolution && j>= 0 && j < terrainResolution ){
+				var distance = new THREE.Vector2(center.x, center.y).distanceTo(new THREE.Vector2(i,j));
+				heightArray[i][j] += modifier * modStrength * Math.min(Math.max(Math.cos(distance/modRange * Math.PI/2),0),1);
+			}
+        }
+      }
+      for (var i = startX-2; i < startX + modRange*2+2; i++) {
+        for (var j = startY-2; j < startY + modRange*2+2; j++) {
+			if(i >= 0 && i < terrainResolution -1 && j>= 0 && j < terrainResolution  ){
+				addQuad(positions, i, j);
+			}
         }
       }
       geometry.attributes.position.needsUpdate = true;
@@ -453,8 +462,8 @@
 		
 	}
 
-      // basic render loop
-      var render = function () {
+    // basic render loop
+    var render = function () {
         
         frameCnt += 1;
 		simulateWater();
@@ -463,11 +472,9 @@
         renderer.render (scene, camera);
       };
 
-      // start
-      init();
-      render();
-	  
-	  
+    // start
+    init();
+    render();
 
     function onDocumentMouseDown( event ) {
 	
@@ -516,9 +523,9 @@
 		}else{
 			radius += 5;
 		}
-		console.log(event.wheelDelta); 
 		updateCamera();
 	}
+	
 	function updateCamera(){
 	  		camera.position.x = terrainResolution/2 + -radius * Math.sin(rotationAngle);
 			camera.position.z = terrainResolution/2 + -radius * Math.cos (rotationAngle);
