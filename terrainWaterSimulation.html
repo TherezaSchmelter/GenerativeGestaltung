@@ -125,7 +125,7 @@
 	var waterTexture;
 	
 	var rotationAngle = 0;
-	var radius;
+	var radius = 100;
 	
 	var grasTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/gras.jpg";//"gras.jpg";
 	var rockTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/rock.jpg"; //"rock.jpg";
@@ -408,13 +408,7 @@
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera (70, window.innerWidth/window.innerHeight, 0.1, 50000);
 
-	  camera.position.x = terrainResolution/2 + -100 * Math.sin(rotationAngle);
-      camera.position.z = terrainResolution/2 + -100 * Math.cos (rotationAngle);
-      camera.position.y = 200;
-	  
-	  console.log(camera.position.x + " " + camera.position.z);
-
-      camera.lookAt (new THREE.Vector3 (terrainResolution/2,0,terrainResolution/2));
+	  updateCamera();
 	  
       // default params
       renderer = new THREE.WebGLRenderer();
@@ -423,6 +417,7 @@
       document.body.addEventListener( 'mousedown', onDocumentMouseDown, false );
 	  document.body.addEventListener( 'mousemove', onMouseMove, false);
 	  document.body.addEventListener( 'mouseup', onMouseUp, false);
+	  document.body.addEventListener( 'wheel', onMouseWheel, false);
       
       
       // create one mesh and add to scene
@@ -471,7 +466,8 @@
       // start
       init();
       render();
-
+	  
+	  
 
     function onDocumentMouseDown( event ) {
 	
@@ -503,14 +499,7 @@
 			mouseMove.y = -( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
 		
 			rotationAngle += -(mouseMove.x - mouse.x)*2;
-			
-			camera.position.x = terrainResolution/2 + -100 * Math.sin(rotationAngle);
-			camera.position.z = terrainResolution/2 + -100 * Math.cos (rotationAngle);
-			camera.position.y = 200;
-	  
-			console.log(camera.position.x + " " + camera.position.z);
-
-			camera.lookAt (new THREE.Vector3 (terrainResolution/2,0,terrainResolution/2));
+			updateCamera();
 				
 			mouse.x = mouseMove.x;
 			mouse.y = mouseMove.y;
@@ -521,6 +510,22 @@
 		mousePressed = false; 
     }
 
+	function onMouseWheel(event){
+		if(event.wheelDelta > 0){
+			radius -= 5;
+		}else{
+			radius += 5;
+		}
+		console.log(event.wheelDelta); 
+		updateCamera();
+	}
+	function updateCamera(){
+	  		camera.position.x = terrainResolution/2 + -radius * Math.sin(rotationAngle);
+			camera.position.z = terrainResolution/2 + -radius * Math.cos (rotationAngle);
+			camera.position.y = radius +100;
+
+			camera.lookAt (new THREE.Vector3 (terrainResolution/2,0,terrainResolution/2));
+	  }
     </script>
   </body>
 </html>
