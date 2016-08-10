@@ -124,7 +124,7 @@
 	var waterRGBA;
 	var waterTexture;
 	
-	var waterSource = new THREE.Vector2(Math.floor(Math.random()*terrainResolution), Math.floor(Math.random()*terrainResolution));
+	var waterSource = new THREE.Vector2(Math.floor(Math.random()*(terrainResolution-30))+15, Math.floor(Math.random()*(terrainResolution-30))+15);
 	
 	//array buffer for vertex attributes
 	var positions = new Float32Array (terrainResolution*terrainResolution*18);
