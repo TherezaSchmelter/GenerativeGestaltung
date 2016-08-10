@@ -97,7 +97,7 @@
 	var renderer;
     var geometry;
 
-    var modRange = 5;
+    var modRange = 20;
     var modStrength = 5;
 	
 	var heightArray;
@@ -113,7 +113,7 @@
 	var waterMaxRise = 20.0;
 	var waterRiseHeight;
 	var waterRiseStartHeight;
-	var waterRising = 0.04;
+	var waterRising = 1;
 	var waterExitFound = false;
 	
 	var positions = new Float32Array (terrainResolution*terrainResolution*18);
@@ -270,7 +270,7 @@
 		
 		if(waterRiseSimulate > 0){
 			console.log("Rise queue: " + waterRiseSimulate);
-			for(var i =0; 0 > waterRiseQueue.length/3 && 0 || i < 50*3; i++){
+			for(var i =0; 0 > waterRiseQueue.length/3 && 0 || i < 300*3; i++){
 				var posx = waterRiseQueue.shift();
 				var posz = waterRiseQueue.shift();
 				var height = waterRiseQueue.shift();
@@ -280,12 +280,11 @@
 			waterExitFound = false;
 			var waterFlowSimulate = waterQueue.length/3;
 			console.log("flow queue: " + waterFlowSimulate);
-			for(var i = 0; i < waterFlowSimulate && i < 200*3; i++){
+			for(var i = 0; i < waterFlowSimulate && i < 100*3; i++){
 				var posx = waterQueue.shift();
 				var posz = waterQueue.shift();
 				var height = waterQueue.shift();
 				
-				console.log(posx + " " + posz + " " + height);
 				simulateWaterFlow(posx,posz,height);
 			}
 		}
@@ -342,7 +341,7 @@
 		
 		var pos = getStrongestDegression(x,z, height);
 		
-		if(waterArray[pos[0]][pos[1]] != 1){
+		if(x != pos[0] && z != pos[1] && waterArray[pos[0]][pos[1]] != 1){
 			waterQueue.push(pos[0]);
 			waterQueue.push(pos[1]); 
 			waterQueue.push(heightArray[pos[0]][pos[1]]);
@@ -406,7 +405,7 @@
 	
 	var foundWaterExit = function (x,z){
 	
-		//console.log("water rise exit found " + x + " " + z);
+		console.log("water rise exit found " + x + " " + z);
 		waterExitFound = true;
 		waterQueue.push(x);
 		waterQueue.push(z); 
