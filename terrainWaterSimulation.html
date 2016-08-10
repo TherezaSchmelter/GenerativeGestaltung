@@ -109,6 +109,12 @@
 	var mousePressed = false;
 	
 	var waterQueue = [];
+	var waterRiseQueue = [];
+	var waterMaxRise = 20.0;
+	var waterRiseHeight;
+	var waterRiseStartHeight;
+	var waterRising = 0.04;
+	var waterExitFound = false;
 	
 	var positions = new Float32Array (terrainResolution*terrainResolution*18);
 	var colors    = new Float32Array (terrainResolution*terrainResolution*18);
@@ -178,20 +184,6 @@
         vec[2] = vec[2]/length;
         return vec;
       }
-	  
-	/*var updateQuad = function (positions, x,y,z){
-		var quadID = x + z * terrainResolution;
-		
-		positions [quadID*6*3+1] = heightArray[x][z];
-        positions [quadID*6*3+4] = heightArray[x+1][z+1];
-		positions [quadID*6*3+7] = heightArray[x+1][z];
-
-		positions [quadID*6*3+10] = heightArray[x][z];
-		positions [quadID*6*3+13] = heightArray[x][z+1];
-		positions [quadID*6*3+16] = heightArray[x+1][z+1];
-	}*/
-	
-	
 	  
 	function createTerrain(){
 
@@ -269,15 +261,32 @@
 		//heightArray
 		//waterArray
 		//waterHeightArray
-		var simulate = waterQueue.length/3;
-		for(var i = 0; i < simulate && i < 1000*3; i++){
-			var posx = waterQueue.shift();
-			var posz = waterQueue.shift();
-			var height = waterQueue.shift();
-			simulateWaterPosition(posx,posz,height);
-		}
+		//waterRiseQueue
+		//waterRiseHeight
+		//waterRiseStartHeight
+		//waterExitFound
 		
-		waterRGBA = new Uint8Array(4 * terrainResolution * terrainResolution);
+		var waterRiseSimulate = waterRiseQueue.length/3;
+		
+		if(waterRiseSimulate > 0){
+			//console.log("Rise queue: " + waterRiseSimulate + " " + waterExitFound);
+			for(var i =0; i < waterRiseQueue.length/3 == 0 || i < 50*3; i++){
+				var posx = waterRiseQueue.shift();
+				var posz = waterRiseQueue.shift();
+				var height = waterRiseQueue.shift();
+				simulateWaterRise(posx,posz,height);
+			}
+		}else{
+			waterExitFound = false;
+			var waterFlowSimulate = waterQueue.length/3;
+			//console.log("flow queue: " + waterFlowSimulate);
+			for(var i = 0; i < waterFlowSimulate || i < 200*3; i++){
+				var posx = waterQueue.shift();
+				var posz = waterQueue.shift();
+				var height = waterQueue.shift();
+				simulateWaterFlow(posx,posz,height);
+			}
+		}
 		
 		updateWaterLerpTexture();
     }
@@ -325,20 +334,26 @@
 		mesh.material.uniforms.waterLerpTexture.value = waterTexture;
 	}
 	
-	var simulateWaterPosition = function(x, y, height){
+	var simulateWaterFlow = function(x, z, height){
 		
 		var waterHeight = height;
 		
-		var pos = getStrongestDegression(x,y, height);
+		var pos = getStrongestDegression(x,z, height);
 		
 		if(waterArray[pos[0]][pos[1]] != 1){
 			waterQueue.push(pos[0]);
 			waterQueue.push(pos[1]); 
 			waterQueue.push(heightArray[pos[0]][pos[1]]);
+			
 			waterArray[pos[0]][pos[1]] = 1;
 			waterHeightArray[pos[0]][pos[1]] = heightArray[pos[0]][pos[1]];
 		}else{
-		
+			waterRiseQueue = [];
+			waterRiseQueue.push(x);
+			waterRiseQueue.push(z);
+			waterRiseQueue.push(height + waterRising);
+			
+			waterRiseStartHeight = height;
 		}
 		
 		/*if(x + 1 <= terrainResolution -1 && heightArray[x+1][y] < waterHeight && waterArray[x+1][y] != 1){
@@ -367,25 +382,90 @@
 		}*/
 	}
 	
-	var getStrongestDegression = function(x,y, height){
-		var str = [x,y];
+	var getStrongestDegression = function(x,z, height){
+		var str = [x,z];
 		
-		if(x + 1 <= terrainResolution -1 && heightArray[x+1][y] < height){
-			str = [x+1,y];
+		if(x + 1 <= terrainResolution -1 && heightArray[x+1][z] < height){
+			str = [x+1,z];
 		}
-		if(x - 1 >= 0 && heightArray[x-1][y] < heightArray[str[0]][str[1]]){
-			str = [x-1,y];
+		if(x - 1 >= 0 && heightArray[x-1][z] < heightArray[str[0]][str[1]]){
+			str = [x-1,z];
 		}
-		if(y + 1 <= terrainResolution-1 && heightArray[x][y+1] < heightArray[str[0]][str[1]]){
-			str = [x, y+1];
+		if(z + 1 <= terrainResolution-1 && heightArray[x][z+1] < heightArray[str[0]][str[1]]){
+			str = [x, z+1];
 		}
-		if(y - 1 >= 0 && heightArray[x][y-1] < heightArray[str[0]][str[1]]){
-			str = [x, y-1];
+		if(z - 1 >= 0 && heightArray[x][z-1] < heightArray[str[0]][str[1]]){
+			str = [x, z-1];
 		}
 		return str;
 	}
 	
-	var fill
+	var foundWaterExit = function (x,z){
+	
+		//console.log("water rise exit found " + x + " " + z);
+		waterExitFound = true;
+		waterQueue.push(x);
+		waterQueue.push(z); 
+		waterQueue.push(heightArray[x][z]);
+			
+		waterArray[x][z] = 1;
+		waterHeightArray[x][z] = heightArray[x][z];
+	}
+	
+	var spreadWater = function(x,z, height){
+		waterRiseQueue.push(x);
+		waterRiseQueue.push(z); 
+		waterRiseQueue.push(height);
+			
+		waterArray[x][z] = 1;
+		waterHeightArray[x][z] = height;
+	}
+	
+	var simulateWaterRise = function(x,z, height){
+	
+		if(x + 1 <= terrainResolution -1 && height > waterHeightArray[x+1][z] && height > heightArray[x+1][z]){
+			if(heightArray[x+1][z] < height - waterRising){
+				foundWaterExit(x+1, z);
+			}else{
+				spreadWater(x+1,z,height);
+			}
+		}
+		if(x - 1 >= 0 && height > waterHeightArray[x-1][z]&& height > heightArray[x-1][z]){
+			if(heightArray[x-1][z] < height - waterRising){
+				foundWaterExit(x-1,z)
+			}else{
+				spreadWater(x-1,z,height);
+			}
+		}
+		if(z + 1 <= terrainResolution-1 && height > waterHeightArray[x][z+1]&& height > heightArray[x][z+1]){
+			if(heightArray[x][z+1] < height - waterRising){
+				foundWaterExit(x,z+1)
+			}else{
+				spreadWater(x,z+1,height);
+			}
+		}
+		if(z - 1 >= 0 && height > waterHeightArray[x][z-1] && height > heightArray[x][z-1]){
+			if(heightArray[x][z-1] < height - waterRising){
+				foundWaterExit(x,z-1)
+			}else{
+				spreadWater(x,z-1,height);
+			}
+		}
+		
+		if(waterRiseQueue.length == 0 && !waterExitFound ){
+			riseWater(x,z);
+		}
+	}
+	
+	var riseWater = function(x,z){
+		//console.log("water rise");
+		waterRiseQueue.push(x); 
+		waterRiseQueue.push(z);
+		waterRiseQueue.push(waterHeightArray[x][z] + waterRising);
+			
+		waterArray[x][z] = 1;
+		waterHeightArray[x][z] = waterHeightArray[x][z] + waterRising;
+	}
 
     var modifyTerrain = function (modifier, center){
 		console.log(center.x + " "+ center.y);
@@ -439,7 +519,8 @@
 	var initWaterSource= function(){
 	
 		waterQueue = [];
-		var size = 1;
+		waterRiseQueue = [];
+		var size = 0;
 		for(var i = terrainResolution/2 -size; i<=terrainResolution/2 +size; i++){
 			for(var j = terrainResolution/2 -size; j<=terrainResolution/2 +size; j++){
 				waterQueue.push(i);
@@ -450,8 +531,9 @@
 			}
 		}
 		
+		/*
 		//random water source points
-		/*for(var i = 0; i <4; i++){
+		for(var i = 0; i <4; i++){
 			var posx = Math.floor(Math.random()*terrainResolution);
 			var posy = Math.floor(Math.random()*terrainResolution);
 			waterQueue.push(posx);
@@ -520,8 +602,10 @@
 	function onMouseWheel(event){
 		if(event.wheelDelta > 0){
 			radius -= 5;
+			radius = Math.max(radius,20);
 		}else{
 			radius += 5;
+			radius = Math.min(radius,120);
 		}
 		updateCamera();
 	}
