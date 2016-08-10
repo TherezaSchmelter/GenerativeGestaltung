@@ -124,10 +124,13 @@
 	var waterRGBA;
 	var waterTexture;
 	
+	var waterSource = new THREE.Vector2(Math.floor(Math.random()*terrainResolution), Math.floor(Math.random()*terrainResolution));
+	
 	//array buffer for vertex attributes
 	var positions = new Float32Array (terrainResolution*terrainResolution*18);
 	var normal    = new Float32Array (terrainResolution*terrainResolution*18);
 
+	
     var raycaster = new THREE.Raycaster();
     var mouse = new THREE.Vector2();
 	var mouseMove = new THREE.Vector2();
@@ -136,7 +139,7 @@
 	var cameraRotationAngle = 0;
 	var cameraRadius = 100;
 	
-	//texture files
+	//texture files loading path
 	var grasTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/gras.jpg";//"gras.jpg";
 	var rockTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/rock.jpg"; //"rock.jpg";
 	
@@ -234,7 +237,7 @@
         calculateNormal(id,x,y,z);
       }
 
-	// calculate and add normal to FloatArray
+	// calculate normal from heightfield and add to FloatArray
     var calculateNormal = function(id, x, y, z){
         var newNormal = [0.0,0.0,0.0];
         var heightLeft = heightArray[x][z] - ((x == 0)? heightArray[x][z]: heightArray[x-1][z]);
@@ -484,7 +487,6 @@
 	
 	//rise water to new height to fill
 	var riseWater = function(x,z){
-		//console.log("water rise");
 		waterRiseQueue.push(x); 
 		waterRiseQueue.push(z);
 		waterRiseQueue.push(waterHeightArray[x][z] + waterRising);
@@ -512,7 +514,6 @@
 		scene = new THREE.Scene();
 		camera = new THREE.PerspectiveCamera (70, window.innerWidth/window.innerHeight, 0.1, 50000);
 		
-		// default params
 		renderer = new THREE.WebGLRenderer();
 		renderer.setSize (window.innerWidth, window.innerHeight);
 		document.body.appendChild (renderer.domElement);
@@ -523,9 +524,11 @@
 		document.body.addEventListener( 'mouseup', onMouseUp, false);
 		document.body.addEventListener( 'wheel', onMouseWheel, false);
      
-		// create one mesh and add to scene
+		// initialise values
 		initArrays(terrainResolution, terrainResolution);
 		initCameraPosition();
+		
+		//create terrain mesh and add to scene
 		mesh = createTerrain();
 		scene.add(mesh);
 	  
@@ -534,33 +537,18 @@
 	
 	//create water source, where water starts flowing
 	var initWaterSource = function(){
-	
+		//clear both queues to start water simulation new
 		waterQueue = [];
 		waterRiseQueue = [];
-		var size = 0;
-		/*for(var i = terrainResolution/2 -size; i<=terrainResolution/2 +size; i++){
-			for(var j = terrainResolution/2 -size; j<=terrainResolution/2 +size; j++){
-				waterQueue.push(i);
-				waterQueue.push(j);
-				waterQueue.push(heightArray[i][j]);
-				waterArray[i][j] = 1;
-				waterHeightArray[i][j] = heightArray[i][j];
-			}
-		}*/
-		
-		//random water source points
-		for(var i = 0; i <1; i++){
-			var posx = Math.floor(Math.random()*terrainResolution);
-			var posy = Math.floor(Math.random()*terrainResolution);
-			waterQueue.push(posx);
-			waterQueue.push(posy);
-			waterQueue.push(heightArray[posx][posy]);
-			waterArray[posx][posy] = 1;
-		}
-		
+
+		//start water simulation with pushing the watersource to the flow queue
+		waterQueue.push(waterSource.x);
+		waterQueue.push(waterSource.y);
+		waterQueue.push(heightArray[waterSource.x][waterSource.y]);
+		waterArray[waterSource.x][waterSource.y] = 1;
 	}
 
-	//init Arrays
+	//init Arrays - heightArray, waterArray, waterHeightArray
 	var initArrays = function(width, height){
 		heightArray = new Array(width);
 		waterArray = new Array(width);
@@ -575,7 +563,6 @@
     
 	// render method - called every frame to draw 
     var render = function () {
-        
         frameCnt += 1;
 		simulateWater();
         
@@ -653,7 +640,6 @@
 		initCameraPosition();
 	}
 	
-
     </script>
   </body>
 </html>
