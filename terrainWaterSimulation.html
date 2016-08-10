@@ -14,18 +14,13 @@
         // comes with framework
         uniform mat4 modelViewMatrix; // optional
         uniform mat4 projectionMatrix; // optional
-
-        // user defined uniforms, values are passed in runtime
-        uniform float time;
         
         // user defined attributes
         attribute vec3 position;
-        attribute vec4 color;
         attribute vec3 normal;
 
         // data to be passed to fragment shader
         varying vec3 vPosition;
-        varying vec4 vColor;
 		varying vec3 vNormal;
         
         void main() {
@@ -36,7 +31,6 @@
           gl_Position = projectionMatrix * modelViewMatrix * vec4 (posTmp, 1.0);
 
           vPosition = position;
-          vColor = color;
         }
 
         </script>
@@ -46,68 +40,79 @@
           precision mediump float;
           precision mediump int;
 
+		  // uniform variables
           uniform float terrainResolution;
+		  
+		  // textures
 		  uniform sampler2D grasTexture;
 		  uniform sampler2D rockTexture;
 		  uniform sampler2D waterLerpTexture;
 
           // input from vertex shader
           varying vec3 vPosition;
-          varying vec4 vColor;
 		  varying vec3 vNormal;
           
           void main() {
+				//calculate uv coodinates based on vertex position
                 vec2 uv = vec2(vPosition.x/terrainResolution,vPosition.z/terrainResolution);
 				vec2 uvTexture = uv*vec2(10.0,10.0);
-				vec4 gras = texture2D(grasTexture, vec2(mod(uvTexture.x,1.0),mod(uvTexture.y,1.0)));
-				vec4 rock = texture2D(rockTexture, vec2(mod(uvTexture.x,1.0),mod(uvTexture.y,1.0)));
+				vec2 uvWater = vec2(uv.x, 1.0-uv.y);
+				uvWater = vec2(mod(uvWater.x,1.0),mod(uvWater.y,1.0));
 				
+				//calculate values for mixing terrain textures
 				float tangent = dot(vNormal, vec3(0.0,0.0,1.0));
 				float terrainMix = smoothstep(0.2,0.8,tangent);
 				float height = smoothstep(vPosition.y,vPosition.y+20.0, terrainResolution/2.0);
-				vec4 terrainTexture = mix(rock,gras, terrainMix*height);
-				vec2 uvWater = vec2(uv.x, 1.0-uv.y);
-				uvWater = vec2(mod(uvWater.x,1.0),mod(uvWater.y,1.0));
+				
+				//texture lookups
+				vec4 gras = texture2D(grasTexture, vec2(mod(uvTexture.x,1.0),mod(uvTexture.y,1.0)));
+				vec4 rock = texture2D(rockTexture, vec2(mod(uvTexture.x,1.0),mod(uvTexture.y,1.0)));
 				float waterLerpTextureColor = 1.0-texture2D(waterLerpTexture, uvWater).r;
+				
+				//calculate final texture color
+				vec4 terrainTexture = mix(rock,gras, terrainMix*height);
 				vec4 terrainWithWater = mix(vec4(0.0,0.0,1.0,1.0), terrainTexture, waterLerpTextureColor);
+				
+				//light calculation
 				float light = dot(vNormal, vec3(0.5,-0.5,0)) *0.5 + 0.5;
 				
+				//final output
 				gl_FragColor = vec4(terrainWithWater.rgb * light,1.0);
           }
-		  
-
         </script>
-        
     <script>
-      
       
     // global variables
 	var cnt = 0;
-    var terrainResolution = 128;
     var frameCnt = 0;
 	
 	//terrain values
-	var terrainSize = 50;
+	var terrainResolution = 128;
 	var terrainMaxHeight = terrainResolution/3;
       
-	var waterSource = [Math.floor(terrainResolution/2), Math.floor(terrainResolution/2)];
+	// three.js variables for rendering the scene
     var scene;
     var camera;
 	var mesh;
 	var renderer;
     var geometry;
 
+	//modification variables
     var modRange = 10;
     var modStrength = 5;
 	
+	//saved terrain heightfield
 	var heightArray;
+	
+	//saves information where water is and where not
 	var waterArray;
-	var waterArray2;
+	
+	//saves height of water at every position
 	var waterHeightArray;
-	var waterHeightArray2;
 	
 	var mousePressed = false;
 	
+	//variables for water simulation
 	var waterQueue = [];
 	var waterRiseQueue = [];
 	var waterMaxRise = 20.0;
@@ -116,26 +121,95 @@
 	var waterRising = 1;
 	var waterExitFound = false;
 	
+	var waterRGBA;
+	var waterTexture;
+	
+	//array buffer for vertex attributes
 	var positions = new Float32Array (terrainResolution*terrainResolution*18);
-	var colors    = new Float32Array (terrainResolution*terrainResolution*18);
 	var normal    = new Float32Array (terrainResolution*terrainResolution*18);
-
-    var helper;
-    var container;
 
     var raycaster = new THREE.Raycaster();
     var mouse = new THREE.Vector2();
 	var mouseMove = new THREE.Vector2();
 	
-	var waterRGBA;
-	var waterTexture;
+	//camera variables
+	var cameraRotationAngle = 0;
+	var cameraRadius = 100;
 	
-	var rotationAngle = 0;
-	var radius = 100;
-	
+	//texture files
 	var grasTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/gras.jpg";//"gras.jpg";
 	var rockTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/rock.jpg"; //"rock.jpg";
 	
+	/////////////////////
+	// TERRAIN METHODS //
+	/////////////////////
+	
+	//create terrain mesh and material
+	var createTerrain = function(){
+
+		THREE.ImageUtils.crossOrigin = '';
+		//generate a heightfield for the terrain
+		generateHeight( terrainResolution, terrainResolution );
+		//create water texture  which holds information where water is
+		createWaterLerpTexture();
+		
+		//create material with all uniforms
+        var material = new THREE.RawShaderMaterial( {
+			uniforms: {
+				terrainResolution: { type: "f", value: terrainResolution},
+				grasTexture: { type: "t", value: THREE.ImageUtils.loadTexture(grasTextureFile)},
+				rockTexture: { type: "t", value: THREE.ImageUtils.loadTexture(rockTextureFile)},
+				waterLerpTexture: { type: "t", value: waterTexture}
+			},
+
+			vertexShader: document.getElementById ('vertexShader').textContent,
+			fragmentShader: document.getElementById ('fragmentShader').textContent,
+			side: THREE.FrontSide,
+			transparent: true
+        });
+					
+		//create custom geometry
+		geometry = new THREE.BufferGeometry();
+
+		//create quad for all cells in heightfield
+        for (var i=0; i<terrainResolution-1; i++) {
+            for (var j=0; j<terrainResolution-1; j++) {
+                addQuad (positions, i, j);
+            }
+        }
+        
+		//add vertexattribute to custom geometry
+        geometry.addAttribute ("position", new THREE.BufferAttribute (positions, 3));
+        geometry.addAttribute ("normal",   new THREE.BufferAttribute (normal, 3));
+		
+		mesh = new THREE.Mesh(geometry, material );
+		
+		return mesh;
+	}
+	
+	//generate heightfield
+	var generateHeight = function( width, height ) {
+		
+		//variables for terrain generation
+		var quality = 1.5;
+		var z = Math.random() * 100;
+		
+		//generate terrain heightfield in 4 iteration
+		for( var a = 0; a < 4; a ++ ) {
+			for ( var i = 0; i < width; i ++ ) {
+				for ( var j = 0; j < height; j ++ ) {
+				if(isNaN(heightArray[i][j])){ 
+					heightArray[i][j] = 0;
+				}
+				//adds a layer of height 
+				heightArray[i][j] += (noise.simplex3(i/quality,j/quality,z)*0.5+0.5) * terrainMaxHeight * quality/100;
+				}
+			}
+			quality *= 5;
+		}
+	}
+	
+	// create Quad - 2 triangles are added 
 	var addQuad = function (positions, x, z) {
 
 		var quadID = x + z * terrainResolution;
@@ -151,6 +225,7 @@
         cnt += 1;
       }
 
+	// add vertex position to FloatArray
     var addVertex = function (id, x, y, z){
         positions [id+0] = x;
         positions [id+1] = y;
@@ -159,6 +234,7 @@
         calculateNormal(id,x,y,z);
       }
 
+	// calculate and add normal to FloatArray
     var calculateNormal = function(id, x, y, z){
         var newNormal = [0.0,0.0,0.0];
         var heightLeft = heightArray[x][z] - ((x == 0)? heightArray[x][z]: heightArray[x-1][z]);
@@ -177,6 +253,7 @@
         normal[id+2] = normalizedNormal[2];
       }
 
+	// normalize helper method
     var normalize = function(vec){
         var length = Math.sqrt((vec[0]*vec[0]) + (vec[1]*vec[1]) + (vec[2] *vec[2]));
         vec[0] = vec[0]/length;
@@ -185,89 +262,47 @@
         return vec;
       }
 	  
-	function createTerrain(){
-
-		THREE.ImageUtils.crossOrigin = '';
-		generateHeight( terrainResolution, terrainResolution );
-		createWaterLerpTexture();
-		
-        var material = new THREE.RawShaderMaterial( {
-			uniforms: {
-				time: { type: "f", value: 1.0 },
-				terrainResolution: { type: "f", value: terrainResolution},
-				grasTexture: { type: "t", value: THREE.ImageUtils.loadTexture(grasTextureFile)},
-				rockTexture: { type: "t", value: THREE.ImageUtils.loadTexture(rockTextureFile)},
-				waterLerpTexture: { type: "t", value: waterTexture}
-			},
-
-			vertexShader: document.getElementById ('vertexShader').textContent,
-			fragmentShader: document.getElementById ('fragmentShader').textContent,
-			side: THREE.FrontSide,
-			transparent: true
-        });
-					
-		geometry = new THREE.BufferGeometry();
-
-        for (var i=0; i<terrainResolution-1; i++) {
-            for (var j=0; j<terrainResolution-1; j++) {
-                addQuad (positions, i, j);
-            }
-        }
-        
-        geometry.addAttribute ("position", new THREE.BufferAttribute (positions, 3));
-        geometry.addAttribute ("color",    new THREE.BufferAttribute (colors, 3));
-        geometry.addAttribute ("normal",   new THREE.BufferAttribute (normal, 3));
-		
-		mesh = new THREE.Mesh(geometry, material );
-		
-		return mesh;
-	}
+	//modify terrain at a position (center) - modifier is 1 or -1 to define if terrain is lowered or heightened
+    var modifyTerrain = function (modifier, center){
+		console.log(center.x + " "+ center.y);
 	
-	function generateHeight( width, height ) {
-
-		heightArray = new Array(width);
-		waterArray = new Array(width);
-		waterArray2 = new Array(width);
-		waterHeightArray= new Array(width);
-		waterHeightArray2= new Array(width);
+		//calculate startposition for "for"-loop
+		var startX = Math.floor(center.x) - modRange;
+		var startY = Math.floor(center.y) - modRange;
 		
-		for (var i = 0; i < width; i++) {
-			heightArray[i] = new Array(height);
-			waterArray[i] = new Array(height);
-			waterArray2[i] = new Array(height);
-			waterHeightArray[i]= new Array(height);
-			waterHeightArray2[i]= new Array(height);
-		}
-		
-		var size = width * height; 
-		//var data = new Uint8Array( size );
-		var quality = 1.5;
-		var z = Math.random() * 100;
-		
-		for( var a = 0; a < 4; a ++ ) {
-			for ( var i = 0; i < width; i ++ ) {
-				for ( var j = 0; j < height; j ++ ) {
-				if(isNaN(heightArray[i][j])){ 
-					heightArray[i][j] = 0;
-				}
-					heightArray[i][j] += (noise.simplex3(i/quality,j/quality,z)*0.5+0.5) * terrainMaxHeight * quality/100;
+		//calculate modification with cosinus to have a nice falloff around the center
+		for (var i = startX-1; i < startX + modRange*2+1; i++) {
+			for (var j = startY-1; j < startY + modRange*2+1; j++) {
+				if(i >= 0 && i < terrainResolution && j>= 0 && j < terrainResolution ){
+					var distance = new THREE.Vector2(center.x, center.y).distanceTo(new THREE.Vector2(i,j));
+					heightArray[i][j] += modifier * modStrength * Math.min(Math.max(Math.cos(distance/modRange * Math.PI/2),0),1);
 				}
 			}
-			quality *= 5;
 		}
-	}
-
+	  
+	  //update mesh where the heightfield was changed
+      for (var i = startX-2; i < startX + modRange*2+2; i++) {
+        for (var j = startY-2; j < startY + modRange*2+2; j++) {
+			if(i >= 0 && i < terrainResolution -1 && j>= 0 && j < terrainResolution  ){
+				addQuad(positions, i, j);
+			}
+        }
+      }
+	  //update mesh attributes
+      geometry.attributes.position.needsUpdate = true;
+      geometry.attributes.normal.needsUpdate = true;
+    }  
+	  
+	//////////////////////////////
+	// WATER SIMULATION METHODS //
+	//////////////////////////////
+	
+	//simulates water flow every frame
 	var simulateWater = function (){
-		//heightArray
-		//waterArray
-		//waterHeightArray
-		//waterRiseQueue
-		//waterRiseHeight
-		//waterRiseStartHeight
-		//waterExitFound
-		
+
 		var waterRiseSimulate = waterRiseQueue.length/3;
 		
+		//calculate water filling in a hole
 		if(waterRiseSimulate > 0){
 			console.log("Rise queue: " + waterRiseSimulate);
 			for(var i =0; 0 > waterRiseQueue.length/3 && 0 || i < 2*3; i++){
@@ -277,6 +312,7 @@
 				simulateWaterRise(posx,posz,height);
 			}
 		}else{
+		// calculate water flow down
 			waterExitFound = false;
 			var waterFlowSimulate = waterQueue.length/3;
 			console.log("flow queue: " + waterFlowSimulate);
@@ -291,6 +327,7 @@
 		updateWaterLerpTexture();
     }
 	
+	//creates water mix Texture which saves where water is flowing
 	var createWaterLerpTexture = function(){
 		waterRGBA = new Uint8Array(4 * terrainResolution * terrainResolution);
 		
@@ -312,6 +349,7 @@
 		waterTexture.needsUpdate = true;
 	}
 	
+	//updates the textures after new water was generated
 	var updateWaterLerpTexture = function(){
 		for ( var i = 0; i < terrainResolution; i ++ ) {
 			for ( var j = 0; j < terrainResolution; j ++ ) {
@@ -334,12 +372,12 @@
 		mesh.material.uniforms.waterLerpTexture.value = waterTexture;
 	}
 	
+	//simulates flow of water down the hill
 	var simulateWaterFlow = function(x, z, height){
-		
-		var waterHeight = height;
 		
 		var pos = getStrongestDegression(x,z, height);
 		
+		//if the neighbour with the strongest degression is not already water let the "pixel" flow
 		if(x != pos[0] && z != pos[1] && waterArray[pos[0]][pos[1]] != 1){
 			waterQueue.push(pos[0]);
 			waterQueue.push(pos[1]); 
@@ -348,6 +386,7 @@
 			waterArray[pos[0]][pos[1]] = 1;
 			waterHeightArray[pos[0]][pos[1]] = heightArray[pos[0]][pos[1]];
 		}else{
+		//if water cannot flow down, the water rise algorithm starts with pushing into the rise queue
 			waterRiseQueue = [];
 			waterRiseQueue.push(x);
 			waterRiseQueue.push(z);
@@ -357,36 +396,12 @@
 			waterHeightArray[x][z] = height + waterRising;
 			waterRiseStartHeight = height;
 		}
-		
-		/*if(x + 1 <= terrainResolution -1 && heightArray[x+1][y] < waterHeight && waterArray[x+1][y] != 1){
-			waterQueue.push(x+1);
-			waterQueue.push(y); 
-			waterQueue.push(heightArray[x+1][y]);
-			waterArray[x+1][y] = 1;
-		}
-		if(x - 1 >= 0 && heightArray[x-1][y] < waterHeight && waterArray[x-1][y]!= 1){
-			waterQueue.push(x-1); 
-			waterQueue.push(y);
-			waterQueue.push(heightArray[x-1][y]);
-			waterArray[x-1][y] = 1;
-		}
-		if(y + 1 <= terrainResolution-1 && heightArray[x][y+1] < waterHeight&& waterArray[x][y+1]!= 1){
-			waterQueue.push(x);
-			waterQueue.push(y+1);
-			waterQueue.push(heightArray[x][y+1]);
-			waterArray[x][y+1] = 1;
-		}
-		if(y - 1 >= 0 && heightArray[x][y-1] < waterHeight&& waterArray[x][y-1] != 1){
-			waterQueue.push(x);
-			waterQueue.push(y-1);
-			waterQueue.push(heightArray[x][y-1]);
-			waterArray[x][y-1] = 1;
-		}*/
 	}
 	
+	//returns neighbour which is the lowest to simulate the water flow to a lower position
 	var getStrongestDegression = function(x,z, height){
 		var str = [x,z];
-		if(x + 1 <= terrainResolution -1 && heightArray[x+1][z] < height){
+		if(x + 1 <= terrainResolution -1 && heightArray[x+1][z] <= height){
 			str = [x+1,z];
 		}
 		if(x - 1 >= 0 && heightArray[x-1][z] < heightArray[str[0]][str[1]]){
@@ -402,6 +417,7 @@
 		return str;
 	}
 	
+	//after found overflow position for the lake start water flow
 	var foundWaterExit = function (x,z){
 	
 		console.log("water rise exit found " + x + " " + z);
@@ -414,6 +430,7 @@
 		waterHeightArray[x][z] = heightArray[x][z];
 	}
 	
+	//pushes position into water rise queue
 	var spreadWater = function(x,z, height){
 		waterRiseQueue.push(x);
 		waterRiseQueue.push(z); 
@@ -423,8 +440,10 @@
 		waterHeightArray[x][z] = height;
 	}
 	
+	//fill hole in all 4 direction to height
 	var simulateWaterRise = function(x,z, height){
 	
+		//right
 		if(x + 1 <= terrainResolution -1 && height > waterHeightArray[x+1][z] && height > heightArray[x+1][z]){
 			if(heightArray[x+1][z] < height - waterRising){
 				foundWaterExit(x+1, z);
@@ -432,6 +451,7 @@
 				spreadWater(x+1,z,height);
 			}
 		}
+		//left
 		if(x - 1 >= 0 && height > waterHeightArray[x-1][z]&& height > heightArray[x-1][z]){
 			if(heightArray[x-1][z] < height - waterRising){
 				foundWaterExit(x-1,z)
@@ -439,6 +459,7 @@
 				spreadWater(x-1,z,height);
 			}
 		}
+		//top
 		if(z + 1 <= terrainResolution-1 && height > waterHeightArray[x][z+1]&& height > heightArray[x][z+1]){
 			if(heightArray[x][z+1] < height - waterRising){
 				foundWaterExit(x,z+1)
@@ -446,6 +467,7 @@
 				spreadWater(x,z+1,height);
 			}
 		}
+		//down
 		if(z - 1 >= 0 && height > waterHeightArray[x][z-1] && height > heightArray[x][z-1]){
 			if(heightArray[x][z-1] < height - waterRising){
 				foundWaterExit(x,z-1)
@@ -454,11 +476,13 @@
 			}
 		}
 		
+		//if the hole is filled to current height but no exit was found, rise the water level and fill it to the new height
 		if(waterRiseQueue.length == 0 && !waterExitFound ){
 			riseWater(x,z);
 		}
 	}
 	
+	//rise water to new height to fill
 	var riseWater = function(x,z){
 		//console.log("water rise");
 		waterRiseQueue.push(x); 
@@ -469,61 +493,52 @@
 		waterHeightArray[x][z] = waterHeightArray[x][z] + waterRising;
 	}
 
-    var modifyTerrain = function (modifier, center){
-		console.log(center.x + " "+ center.y);
+	////////////////////////
+	// INITIATION METHODS //
+	////////////////////////
+
+	//calculate camera position
+	var initCameraPosition = function(){
+	  	camera.position.x = terrainResolution/2 + -cameraRadius * Math.sin(cameraRotationAngle);
+		camera.position.z = terrainResolution/2 + -cameraRadius * Math.cos (cameraRotationAngle);
+		camera.position.y = cameraRadius +100;
+
+		camera.lookAt (new THREE.Vector3 (terrainResolution/2,0,terrainResolution/2));
+	}
 	
-		var startX = Math.floor(center.x) - modRange;
-		var startY = Math.floor(center.y) - modRange;
-		console.log(startX + " "+ startY);
+	// init method
+    var init = function() {
+		//create three js elements
+		scene = new THREE.Scene();
+		camera = new THREE.PerspectiveCamera (70, window.innerWidth/window.innerHeight, 0.1, 50000);
 		
-      for (var i = startX-1; i < startX + modRange*2+1; i++) {
-        for (var j = startY-1; j < startY + modRange*2+1; j++) {
-			if(i >= 0 && i < terrainResolution && j>= 0 && j < terrainResolution ){
-				var distance = new THREE.Vector2(center.x, center.y).distanceTo(new THREE.Vector2(i,j));
-				heightArray[i][j] += modifier * modStrength * Math.min(Math.max(Math.cos(distance/modRange * Math.PI/2),0),1);
-			}
-        }
-      }
-      for (var i = startX-2; i < startX + modRange*2+2; i++) {
-        for (var j = startY-2; j < startY + modRange*2+2; j++) {
-			if(i >= 0 && i < terrainResolution -1 && j>= 0 && j < terrainResolution  ){
-				addQuad(positions, i, j);
-			}
-        }
-      }
-      geometry.attributes.position.needsUpdate = true;
-      geometry.attributes.normal.needsUpdate = true;
-    }
-
-    function init() {
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera (70, window.innerWidth/window.innerHeight, 0.1, 50000);
-
-	  updateCamera();
+		// default params
+		renderer = new THREE.WebGLRenderer();
+		renderer.setSize (window.innerWidth, window.innerHeight);
+		document.body.appendChild (renderer.domElement);
 	  
-      // default params
-      renderer = new THREE.WebGLRenderer();
-      renderer.setSize (window.innerWidth, window.innerHeight);
-      document.body.appendChild (renderer.domElement);
-      document.body.addEventListener( 'mousedown', onDocumentMouseDown, false );
-	  document.body.addEventListener( 'mousemove', onMouseMove, false);
-	  document.body.addEventListener( 'mouseup', onMouseUp, false);
-	  document.body.addEventListener( 'wheel', onMouseWheel, false);
-      
-      
-      // create one mesh and add to scene
-      mesh = createTerrain();
-      scene.add(mesh);
+		// add listener
+		document.body.addEventListener( 'mousedown', onDocumentMouseDown, false );
+		document.body.addEventListener( 'mousemove', onMouseMove, false);
+		document.body.addEventListener( 'mouseup', onMouseUp, false);
+		document.body.addEventListener( 'wheel', onMouseWheel, false);
+     
+		// create one mesh and add to scene
+		initArrays(terrainResolution, terrainResolution);
+		initCameraPosition();
+		mesh = createTerrain();
+		scene.add(mesh);
 	  
-	  initWaterSource();
+		initWaterSource();
     }
 	
-	var initWaterSource= function(){
+	//create water source, where water starts flowing
+	var initWaterSource = function(){
 	
 		waterQueue = [];
 		waterRiseQueue = [];
 		var size = 0;
-		for(var i = terrainResolution/2 -size; i<=terrainResolution/2 +size; i++){
+		/*for(var i = terrainResolution/2 -size; i<=terrainResolution/2 +size; i++){
 			for(var j = terrainResolution/2 -size; j<=terrainResolution/2 +size; j++){
 				waterQueue.push(i);
 				waterQueue.push(j);
@@ -531,22 +546,34 @@
 				waterArray[i][j] = 1;
 				waterHeightArray[i][j] = heightArray[i][j];
 			}
-		}
+		}*/
 		
-		/*
 		//random water source points
-		for(var i = 0; i <4; i++){
+		for(var i = 0; i <1; i++){
 			var posx = Math.floor(Math.random()*terrainResolution);
 			var posy = Math.floor(Math.random()*terrainResolution);
 			waterQueue.push(posx);
 			waterQueue.push(posy);
 			waterQueue.push(heightArray[posx][posy]);
 			waterArray[posx][posy] = 1;
-		}*/
+		}
 		
 	}
 
-    // basic render loop
+	//init Arrays
+	var initArrays = function(width, height){
+		heightArray = new Array(width);
+		waterArray = new Array(width);
+		waterHeightArray= new Array(width);
+		
+		for (var i = 0; i < width; i++) {
+			heightArray[i] = new Array(height);
+			waterArray[i] = new Array(height);
+			waterHeightArray[i]= new Array(height);
+		}
+	}
+    
+	// render method - called every frame to draw 
     var render = function () {
         
         frameCnt += 1;
@@ -560,65 +587,73 @@
     init();
     render();
 
+	///////////////////
+	// MOUSE METHODS //
+	///////////////////
+	
+	// sends ray from mouse position to interact with terrain
     function onDocumentMouseDown( event ) {
 	
 	  mousePressed = true;
+	  //get mouse pos clicked
       mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
       mouse.y = -( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
+	  
+	  //send raycast to interact with terrain
       raycaster.setFromCamera(mouse, camera);
 
       // See if the ray from the camera into the world hits one of our meshes
       var intersects = raycaster.intersectObject(mesh);
 
-      // Toggle rotation bool for meshes that we clicked
       if (intersects.length > 0) {
         var modifier;
+		//left mouseclick for terrain add
         if (event.button == 0){
           modifier = 1;
+		// right mouseclicl for terrain substract
         }else{
           modifier = -1;
         }
+		
+		//modifiy terrain and update all related values
         modifyTerrain(modifier,new THREE.Vector2(intersects[0].point.x, intersects[0].point.z));
 		createWaterLerpTexture();
 		initWaterSource();
       }
     }
 
+	//rotate camera around y-axis if mouse button is clicked
     function onMouseMove( event ) {
 		if(mousePressed){
 			mouseMove.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
 			mouseMove.y = -( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
 		
-			rotationAngle += -(mouseMove.x - mouse.x)*2;
-			updateCamera();
+			cameraRotationAngle += -(mouseMove.x - mouse.x)*2;
+			initCameraPosition();
 				
 			mouse.x = mouseMove.x;
 			mouse.y = mouseMove.y;
 		}
     }
 	
+	//ends rotation of camera
 	function onMouseUp( event ) {
 		mousePressed = false; 
     }
 
+	//zoom with mouse wheel
 	function onMouseWheel(event){
 		if(event.wheelDelta > 0){
-			radius -= 5;
-			radius = Math.max(radius,20);
+			cameraRadius -= 5;
+			cameraRadius = Math.max(cameraRadius,20);
 		}else{
-			radius += 5;
-			radius = Math.min(radius,120);
+			cameraRadius += 5;
+			cameraRadius = Math.min(cameraRadius,120);
 		}
-		updateCamera();
+		initCameraPosition();
 	}
 	
-	function updateCamera(){
-	  		camera.position.x = terrainResolution/2 + -radius * Math.sin(rotationAngle);
-			camera.position.z = terrainResolution/2 + -radius * Math.cos (rotationAngle);
-			camera.position.y = radius +100;
 
-			camera.lookAt (new THREE.Vector3 (terrainResolution/2,0,terrainResolution/2));
-	  }
     </script>
   </body>
 </html>
