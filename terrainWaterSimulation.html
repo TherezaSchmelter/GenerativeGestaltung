@@ -509,7 +509,7 @@
 	
 		//right
 		if(x + 1 <= terrainResolution -1 && height > waterHeightArray[x+1][z] && height > heightArray[x+1][z]){
-			if(heightArray[x+1][z] < height - waterRising){
+			if(lookupHeight(x+1,z) < height - waterRising){
 				//console.log("water rise exit found " + x + " " + z);
 				waterExitFound = true;
 				flowWater(x+1, z);
@@ -519,7 +519,7 @@
 		}
 		//left
 		if(x - 1 >= 0 && height > waterHeightArray[x-1][z]&& height > heightArray[x-1][z]){
-			if(heightArray[x-1][z] < height - waterRising){
+			if(lookupHeight(x-1,z) < height - waterRising){
 				//console.log("water rise exit found " + x + " " + z);
 				waterExitFound = true;
 				flowWater(x-1,z)
@@ -529,7 +529,7 @@
 		}
 		//top
 		if(z + 1 <= terrainResolution-1 && height > waterHeightArray[x][z+1]&& height > heightArray[x][z+1]){
-			if(heightArray[x][z+1] < height - waterRising ){
+			if(lookupHeight(x,z+1) < height - waterRising ){
 				//console.log("water rise exit found " + x + " " + z);
 				waterExitFound = true;
 				flowWater(x,z+1)
@@ -539,7 +539,7 @@
 		}
 		//down
 		if(z - 1 >= 0 && height > waterHeightArray[x][z-1] && height > heightArray[x][z-1]){
-			if(heightArray[x][z-1] < height - waterRising){
+			if(lookupHeight(x,z-1) < height - waterRising){
 				//console.log("water rise exit found " + x + " " + z);
 				waterExitFound = true;
 				flowWater(x,z-1)
