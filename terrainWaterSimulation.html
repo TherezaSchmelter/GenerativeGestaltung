@@ -116,7 +116,7 @@
 	var waterMaxRise = 20.0;
 	var waterRiseHeight;
 	var waterRiseStartHeight;
-	var waterRising = 1;
+	var waterRising = 0.2;
 	var waterExitFound = false;
 	var waterNeedsRaise = false;
 	
@@ -129,6 +129,7 @@
 	var positions = new Float32Array (terrainResolution*terrainResolution*18);
 	var normal    = new Float32Array (terrainResolution*terrainResolution*18);
 
+	//saves x,z values where water level changed to update the terrain
 	var minIdChangeThisFrame;
 	var maxIdChangeThisFrame;
 	
@@ -241,10 +242,13 @@
 	// calculate normal from heightfield and add to FloatArray
     var calculateNormal = function(id, x, y, z){
         var newNormal = [0.0,0.0,0.0];
-        var heightLeft = heightArray[x][z] - ((x == 0)? heightArray[x][z]: heightArray[x-1][z]);
-        var heightRight = heightArray[x][z] - ((x == terrainResolution - 1)? heightArray[x][z]: heightArray[x+1][z]);
-        var heightDown = heightArray[x][z] - ((z == 0)? heightArray[x][z]: heightArray[x][z-1]);
-        var heightUp = heightArray[x][z] - ((z == terrainResolution - 1)? heightArray[x][z]:heightArray[x][z+1]);
+		
+		var lookUpHeightXZ = lookupHeight(x,z);
+		
+        var heightLeft = y - ((x == 0)? y: lookupHeight(x-1,z));
+        var heightRight = y - ((x == terrainResolution - 1)? y: lookupHeight(x+1,z));
+        var heightDown = y - ((z == 0)? y: lookupHeight(x,z-1));
+        var heightUp = y - ((z == terrainResolution - 1)? y:lookupHeight(x,z+1));
 
         newNormal[0] = heightLeft - heightRight;
         newNormal[1] = heightDown - heightUp;
@@ -255,7 +259,13 @@
         normal[id+0] = normalizedNormal[0];
         normal[id+1] = normalizedNormal[1];
         normal[id+2] = normalizedNormal[2];
-      }
+    }
+	
+	//return normal height, if no water is filled above the terrain
+	//else it returns the terrain height with water
+	var lookupHeight = function(x,z){
+		return heightArray[x][z] > waterHeightArray[x][z] ? heightArray[x][z] : waterHeightArray[x][z];
+	}
 
 	// normalize helper method
     var normalize = function(vec){
@@ -283,7 +293,7 @@
 				}
 			}
 		}
-	  
+	  /*
 	  //update mesh where the heightfield was changed
       for (var i = startX-2; i < startX + modRange*2+2; i++) {
         for (var j = startY-2; j < startY + modRange*2+2; j++) {
@@ -291,18 +301,31 @@
 				addQuad(positions, i, j);
 			}
         }
+      }*/
+	  
+	  //update mesh where the heightfield was changed
+      for (var i = 0; i < terrainResolution; i++) {
+        for (var j = 0; j < terrainResolution; j++) {
+			if(i >= 0 && i < terrainResolution -1 && j>= 0 && j < terrainResolution  ){
+				addQuad(positions, i, j);
+			}
+        }
       }
+	  
 	  //update mesh attributes
       geometry.attributes.position.needsUpdate = true;
       geometry.attributes.normal.needsUpdate = true;
     }  
 	  
+	// updates terrain after water level changed
 	var updateTerrain = function(){
 		if(minIdChangeThisFrame[0] < terrainResolution){
 		console.log(minIdChangeThisFrame[0] + " " + minIdChangeThisFrame[1] + " " + maxIdChangeThisFrame[0] + " " + maxIdChangeThisFrame[1]);
 			for(var i = minIdChangeThisFrame[0]-2; i < maxIdChangeThisFrame[0]+2; i++){
 				for(var j = minIdChangeThisFrame[1]-2; j < maxIdChangeThisFrame[1]+2; j++){
-					addQuad(positions,i,j);
+					if(i >= 0 && i < terrainResolution -1 && j>= 0 && j < terrainResolution  ){
+						addQuad(positions,i,j);
+					}
 				}
 			}
 		}
@@ -317,8 +340,10 @@
 	//simulates water flow every frame
 	var simulateWater = function (){
 
+		//reset change values
 		minIdChangeThisFrame = [1000,1000];
 		maxIdChangeThisFrame = [-1,-1];
+		
 		var waterRiseSimulate = waterRiseQueue.length/3;
 		
 		//calculate water filling in a hole
@@ -346,7 +371,6 @@
 		
 		updateWaterLerpTexture();
 		updateTerrain();
-		
     }
 	
 	//creates water mix Texture which saves where water is flowing
@@ -452,6 +476,7 @@
 		updateIdChange(x,z);
 	}
 	
+	//update min and max id changes
 	var updateIdChange = function(x,z){
 		if(x < minIdChangeThisFrame[0]){
 			minIdChangeThisFrame[0] = x;
@@ -504,7 +529,7 @@
 		}
 		//top
 		if(z + 1 <= terrainResolution-1 && height > waterHeightArray[x][z+1]&& height > heightArray[x][z+1]){
-			if(heightArray[x][z+1] < height - waterRising){
+			if(heightArray[x][z+1] < height - waterRising ){
 				//console.log("water rise exit found " + x + " " + z);
 				waterExitFound = true;
 				flowWater(x,z+1)
@@ -648,8 +673,8 @@
         }
 		
 		//modifiy terrain and update all related values
-        modifyTerrain(modifier,new THREE.Vector2(intersects[0].point.x, intersects[0].point.z));
 		createWaterLerpTexture();
+        modifyTerrain(modifier,new THREE.Vector2(intersects[0].point.x, intersects[0].point.z));
 		initWaterSource();
       }
     }
