@@ -135,9 +135,8 @@
 	var normal    = new Float32Array (terrainResolution*terrainResolution*18);
 
 	//saves x,z values where water level changed to update the terrain
-	var minIdChangeThisFrame;
-	var maxIdChangeThisFrame;
-	
+	var minIdChangeThisFrame = [1000,1000];
+	var maxIdChangeThisFrame = [-1,-1];
 	
     var raycaster = new THREE.Raycaster();
     var mouse = new THREE.Vector2();
@@ -152,7 +151,6 @@
 	var rockTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/rock.jpg"; 
 	var waterTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/water.jpg";
 	
-	//local file loading
 	//var grasTextureFile = "textures/gras.jpg";
 	//var rockTextureFile = "textures/rock.jpg";
 	//var waterTextureFile = "textures/water.jpg";
@@ -346,6 +344,7 @@
 		geometry.attributes.position.needsUpdate = true;
 		geometry.attributes.normal.needsUpdate = true;
 	}
+	
 	//////////////////////////////
 	// WATER SIMULATION METHODS //
 	//////////////////////////////
@@ -414,19 +413,13 @@
 	//updates the textures after new water was generated
 	var updateWaterLerpTexture = function(){
 		//r-channel for water information
-		//g-channel for water height information
+		//g-channel for water height information 
 		//b-channel for terrain height information
 		for ( var i = 0; i < terrainResolution; i ++ ) {
 			for ( var j = 0; j < terrainResolution; j ++ ) {
 				var id = i + j*terrainResolution;
 				if(waterArray[i][j] == 1){
 					waterRGBA[id*4 + 0] = 255;
-				}else if(i>0 && i< terrainResolution-1 && j>0 && j <terrainResolution-1){
-					if(waterArray[i+1][j] == 1||waterArray[i-1][j] == 1 ||waterArray[i][j+1] == 1 || waterArray[i][j-1] == 1){
-						waterRGBA[id*4 + 0] = 127;
-					}else{
-						waterRGBA[id*4 + 0] = 0;
-					}
 				}else{
 					waterRGBA[id*4 + 0] = 0;
 				}
@@ -449,9 +442,6 @@
 		if(!samePos && waterArray[pos[0]][pos[1]] != 1){
 			flowWater(pos[0],pos[1]);
 
-		}else if(x+1 >= terrainResolution || x-1 < 0 || z-1 < 0 || z+1 >= terrainResolution){
-			//do nothing -> water flow outside of visible map
-			return;
 		}else{
 			//if water cannot flow down, the water rise algorithm starts with pushing into the rise queue
 			waterNeedsRaise = true;
@@ -590,6 +580,18 @@
 
 	}
 
+		//create water source, where water starts flowing
+	var initWaterSource = function(){
+		//clear both queues to start water simulation new
+		waterQueue = [];
+		waterRiseQueue = [];
+
+		//start water simulation with pushing the watersource to the flow queue
+		
+		flowWater(waterSource.x, waterSource.y)
+
+	}
+	
 	////////////////////////
 	// INITIATION METHODS //
 	////////////////////////
@@ -629,19 +631,6 @@
 	  
 		initWaterSource();
     }
-	
-	//create water source, where water starts flowing
-	var initWaterSource = function(){
-		//clear both queues to start water simulation new
-		waterQueue = [];
-		waterRiseQueue = [];
-
-		//start water simulation with pushing the watersource to the flow queue
-		waterQueue.push(waterSource.x);
-		waterQueue.push(waterSource.y);
-		waterQueue.push(heightArray[waterSource.x][waterSource.y]);
-		waterArray[waterSource.x][waterSource.y] = 1;
-	}
 
 	//init Arrays - heightArray, waterArray, waterHeightArray
 	var initArrays = function(width, height){
