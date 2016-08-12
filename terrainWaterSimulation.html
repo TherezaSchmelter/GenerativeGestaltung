@@ -41,11 +41,13 @@
 
 		  // uniform variables
           uniform float terrainResolution;
+		  uniform float time;
 		  
 		  // textures
 		  uniform sampler2D grasTexture;
 		  uniform sampler2D rockTexture;
 		  uniform sampler2D waterLerpTexture;
+		  uniform sampler2D waterTexture;
 
           // input from vertex shader
           varying vec3 vPosition;
@@ -55,7 +57,7 @@
 				//calculate uv coodinates based on vertex position
                 vec2 uv = vec2(vPosition.x/terrainResolution,vPosition.z/terrainResolution);
 				vec2 uvTexture = uv*vec2(10.0,10.0);
-				vec2 uvWater = vec2(uv.x, 1.0-uv.y);
+				vec2 uvWaterInformation = vec2(uv.x, 1.0-uv.y);
 				
 				//calculate values for mixing terrain textures
 				float tangent = dot(vNormal, vec3(0.0,0.0,1.0));
@@ -65,11 +67,14 @@
 				//texture lookups
 				vec4 gras = texture2D(grasTexture, vec2(mod(uvTexture.x,1.0),mod(uvTexture.y,1.0)));
 				vec4 rock = texture2D(rockTexture, vec2(mod(uvTexture.x,1.0),mod(uvTexture.y,1.0)));
-				float waterLerpTextureColor = 1.0-texture2D(waterLerpTexture, uvWater).r;
+				vec4 water1 = texture2D(waterTexture, vec2(mod(uvTexture.x + time/2000.0,1.0),mod(uvTexture.y + time/1000.0,1.0)));
+				vec4 water2 = texture2D(waterTexture, vec2(mod(uvTexture.x + time/-2000.0,1.0),mod(uvTexture.y + time/-1000.0,1.0)));
+				vec4 water = mix(water1, water2, 0.5);
+				float waterLerpTextureColor = 1.0-texture2D(waterLerpTexture, uvWaterInformation).r;
 				
 				//calculate final texture color
 				vec4 terrainTexture = mix(rock,gras, terrainMix*height);
-				vec4 terrainWithWater = mix(vec4(0.0,0.0,1.0,1.0), terrainTexture, waterLerpTextureColor);
+				vec4 terrainWithWater = mix(water *0.8, terrainTexture, waterLerpTextureColor);
 				
 				//light calculation
 				float light = dot(vNormal, vec3(0.5,-0.5,0)) *0.5 + 0.5;
@@ -121,7 +126,7 @@
 	var waterNeedsRaise = false;
 	
 	var waterRGBA;
-	var waterTexture;
+	var waterInformationTexture;
 	
 	var waterSource = new THREE.Vector2(Math.floor(Math.random()*(terrainResolution-30))+15, Math.floor(Math.random()*(terrainResolution-30))+15);
 	
@@ -133,6 +138,7 @@
 	var minIdChangeThisFrame;
 	var maxIdChangeThisFrame;
 	
+	
     var raycaster = new THREE.Raycaster();
     var mouse = new THREE.Vector2();
 	var mouseMove = new THREE.Vector2();
@@ -142,8 +148,14 @@
 	var cameraRadius = 100;
 	
 	//texture files loading path
-	var grasTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/gras.jpg";//"gras.jpg";
-	var rockTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/rock.jpg"; //"rock.jpg";
+	var grasTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/gras.jpg";
+	var rockTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/rock.jpg"; 
+	var waterTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/water.jpg";
+	
+	//local file loading
+	//var grasTextureFile = "textures/gras.jpg";
+	//var rockTextureFile = "textures/rock.jpg";
+	//var waterTextureFile = "textures/water.jpg";
 	
 	/////////////////////
 	// TERRAIN METHODS //
@@ -161,10 +173,12 @@
 		//create material with all uniforms
         var material = new THREE.RawShaderMaterial( {
 			uniforms: {
+				time: {type: "f", value: 0.0},
 				terrainResolution: { type: "f", value: terrainResolution},
 				grasTexture: { type: "t", value: THREE.ImageUtils.loadTexture(grasTextureFile)},
 				rockTexture: { type: "t", value: THREE.ImageUtils.loadTexture(rockTextureFile)},
-				waterLerpTexture: { type: "t", value: waterTexture}
+				waterTexture: { type: "t", value: THREE.ImageUtils.loadTexture(waterTextureFile)},
+				waterLerpTexture: { type: "t", value: waterInformationTexture}
 			},
 
 			vertexShader: document.getElementById ('vertexShader').textContent,
@@ -393,8 +407,8 @@
 		
 		}
 		
-		waterTexture = new THREE.DataTexture( waterRGBA, terrainResolution, terrainResolution, THREE.RGBAFormat );
-		waterTexture.needsUpdate = true;
+		waterInformationTexture = new THREE.DataTexture( waterRGBA, terrainResolution, terrainResolution, THREE.RGBAFormat );
+		waterInformationTexture.needsUpdate = true;
 	}
 	
 	//updates the textures after new water was generated
@@ -421,9 +435,9 @@
 				waterRGBA[id*4 + 3] = 255;
 			}
 		}
-		waterTexture = new THREE.DataTexture( waterRGBA, terrainResolution, terrainResolution, THREE.RGBAFormat );
-		waterTexture.needsUpdate = true;
-		mesh.material.uniforms.waterLerpTexture.value = waterTexture;
+		waterInformationTexture = new THREE.DataTexture( waterRGBA, terrainResolution, terrainResolution, THREE.RGBAFormat );
+		waterInformationTexture.needsUpdate = true;
+		mesh.material.uniforms.waterLerpTexture.value = waterInformationTexture;
 	}
 	
 	//simulates flow of water down the hill
@@ -644,6 +658,7 @@
     
 	// render method - called every frame to draw 
     var render = function () {
+		mesh.material.uniforms.time.value = frameCnt;
         frameCnt += 1;
 		simulateWater();
         
