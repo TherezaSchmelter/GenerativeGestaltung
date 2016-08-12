@@ -128,6 +128,7 @@
 	var waterRGBA;
 	var waterInformationTexture;
 	
+	//originated from the watersource the water flow is generated
 	var waterSource = new THREE.Vector2(Math.floor(Math.random()*(terrainResolution-30))+15, Math.floor(Math.random()*(terrainResolution-30))+15);
 	
 	//array buffer for vertex attributes
@@ -150,10 +151,6 @@
 	var grasTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/gras.jpg";
 	var rockTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/rock.jpg"; 
 	var waterTextureFile = "https://raw.githubusercontent.com/TherezaSchmelter/GenerativeGestaltung/master/water.jpg";
-	
-	//var grasTextureFile = "textures/gras.jpg";
-	//var rockTextureFile = "textures/rock.jpg";
-	//var waterTextureFile = "textures/water.jpg";
 	
 	/////////////////////
 	// TERRAIN METHODS //
