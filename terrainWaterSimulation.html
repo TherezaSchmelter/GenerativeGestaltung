@@ -196,7 +196,7 @@
 	var generateHeight = function( width, height ) {
 		
 		//variables for terrain generation
-		var quality = 2.5;
+		var quality = 2.7;
 		var z = Math.random() * 100;
 		
 		//generate terrain heightfield in 4 iteration
@@ -346,18 +346,18 @@
 		var waterRiseSimulate = waterRiseQueue.length/3;
 		var waterFlowSimulate = waterQueue.length/3;
 		
-		//calculate water filling in a hole
+		//calculate water filling in a lake/hole
 		if(waterRiseSimulate > 0){
 			waterNeedsRaise = false;
 			console.log("Rise queue: " + waterRiseSimulate);
-			for(var i =0; 3 <= waterRiseQueue.length && i < 5*3; i++){
+			for(var i =0; i < waterRiseSimulate && 3 <= waterRiseQueue.length && i < 5*3; i++){
 				var posx = waterRiseQueue.shift();
 				var posz = waterRiseQueue.shift();
 				var height = waterRiseQueue.shift();
 				simulateWaterRise(posx,posz,height);
 			}
 		}else if(waterFlowSimulate > 0){
-		// calculate water flow down
+			// calculate water flow down
 			waterExitFound = false;
 			//console.log("flow queue: " + waterFlowSimulate);
 			for(var i = 0; i < waterFlowSimulate && i < 2*3 || !waterNeedsRaise; i++){
@@ -443,7 +443,7 @@
 			waterNeedsRaise = true;
 			console.log(x + " " + z)
 			waterRiseQueue = [];
-			riseWater(x,z);
+			riseWater(x,z, height);
 			waterRiseStartHeight = height;
 		}
 	}
@@ -560,18 +560,18 @@
 		
 		//if the hole is filled to current height but no exit was found, rise the water level and fill it to the new height
 		if(waterRiseQueue.length == 0 && !waterExitFound ){
-			riseWater(x,z);
+			riseWater(x,z, height);
 		}
 	}
 	
 	//rise water to new height to fill
-	var riseWater = function(x,z){
+	var riseWater = function(x,z, height){
 		waterRiseQueue.push(x); 
 		waterRiseQueue.push(z);
-		waterRiseQueue.push(waterHeightArray[x][z] + waterRising);
+		waterRiseQueue.push(height + waterRising);
 			
 		waterArray[x][z] = 1;
-		waterHeightArray[x][z] = waterHeightArray[x][z] + waterRising;
+		waterHeightArray[x][z] = height + waterRising;
 		updateIdChange(x,z);
 
 	}
