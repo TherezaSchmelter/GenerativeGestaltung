@@ -116,7 +116,7 @@
 	var waterMaxRise = 20.0;
 	var waterRiseHeight;
 	var waterRiseStartHeight;
-	var waterRising = 0.2;
+	var waterRising = 0.4;
 	var waterExitFound = false;
 	var waterNeedsRaise = false;
 	
@@ -320,7 +320,6 @@
 	// updates terrain after water level changed
 	var updateTerrain = function(){
 		if(minIdChangeThisFrame[0] < terrainResolution){
-		console.log(minIdChangeThisFrame[0] + " " + minIdChangeThisFrame[1] + " " + maxIdChangeThisFrame[0] + " " + maxIdChangeThisFrame[1]);
 			for(var i = minIdChangeThisFrame[0]-2; i < maxIdChangeThisFrame[0]+2; i++){
 				for(var j = minIdChangeThisFrame[1]-2; j < maxIdChangeThisFrame[1]+2; j++){
 					if(i >= 0 && i < terrainResolution -1 && j>= 0 && j < terrainResolution  ){
@@ -345,23 +344,23 @@
 		maxIdChangeThisFrame = [-1,-1];
 		
 		var waterRiseSimulate = waterRiseQueue.length/3;
+		var waterFlowSimulate = waterQueue.length/3;
 		
 		//calculate water filling in a hole
 		if(waterRiseSimulate > 0){
 			waterNeedsRaise = false;
 			console.log("Rise queue: " + waterRiseSimulate);
-			for(var i =0; 0 > waterRiseQueue.length/3 && 0 || i < 2*3; i++){
+			for(var i =0; 3 <= waterRiseQueue.length && i < 2*3; i++){
 				var posx = waterRiseQueue.shift();
 				var posz = waterRiseQueue.shift();
 				var height = waterRiseQueue.shift();
 				simulateWaterRise(posx,posz,height);
 			}
-		}else{
+		}else if(waterFlowSimulate > 0){
 		// calculate water flow down
 			waterExitFound = false;
-			var waterFlowSimulate = waterQueue.length/3;
 			console.log("flow queue: " + waterFlowSimulate);
-			for(var i = 0; i < waterFlowSimulate && i < 2*3 &&  waterQueue.length != 0 || !waterNeedsRaise; i++){
+			for(var i = 0; i < waterFlowSimulate && i < 2*3 &&  3 <= waterQueue.length  || !waterNeedsRaise; i++){
 				var posx = waterQueue.shift();
 				var posz = waterQueue.shift();
 				var height = waterQueue.shift();
@@ -433,11 +432,13 @@
 		if(!samePos && waterArray[pos[0]][pos[1]] != 1){
 			flowWater(pos[0],pos[1]);
 
-		/*}else if(x+1 > terrainResolution -1 || x-1 < 0 || z-1 < 0 || z+1 > terrainResolution - 1){
-			//do nothing -> water flow outside of visible map*/
+		}else if(x+1 >= terrainResolution || x-1 < 0 || z-1 < 0 || z+1 >= terrainResolution){
+			//do nothing -> water flow outside of visible map
+			return;
 		}else{
 			//if water cannot flow down, the water rise algorithm starts with pushing into the rise queue
 			waterNeedsRaise = true;
+			console.log(x + " " + z)
 			waterRiseQueue = [];
 			riseWater(x,z);
 			waterRiseStartHeight = height;
@@ -506,7 +507,7 @@
 	
 	//fill hole in all 4 direction to height
 	var simulateWaterRise = function(x,z, height){
-	
+		
 		//right
 		if(x + 1 <= terrainResolution -1 && height > waterHeightArray[x+1][z] && height > heightArray[x+1][z]){
 			if(lookupHeight(x+1,z) < height - waterRising){
@@ -548,6 +549,12 @@
 			}
 		}
 		
+		//if water flows out of the map the lake should not fill up anymore
+		if(x + 1 >= terrainResolution || x - 1 < 0 || z + 1 >= terrainResolution || z - 1 < 0 ){
+			waterExitFound = true;
+			return;
+		}
+		
 		//if the hole is filled to current height but no exit was found, rise the water level and fill it to the new height
 		if(waterRiseQueue.length == 0 && !waterExitFound ){
 			riseWater(x,z);
@@ -563,6 +570,7 @@
 		waterArray[x][z] = 1;
 		waterHeightArray[x][z] = waterHeightArray[x][z] + waterRising;
 		updateIdChange(x,z);
+
 	}
 
 	////////////////////////
@@ -638,7 +646,7 @@
         
         requestAnimationFrame (render);
         renderer.render (scene, camera);
-      };
+      }
 
     // start
     init();
